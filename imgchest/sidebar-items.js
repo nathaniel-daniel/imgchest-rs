@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":[["Error","The error"],["InvalidPostError","An error that may occur while parsing a post"],["InvalidPostImageError","Returned if a post image could not be extracted from an element"]],"struct":[["Client","The client"],["Post","A Post"],["PostImage","A post image"]]};
