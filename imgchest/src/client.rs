@@ -3,6 +3,7 @@ use crate::Error;
 use crate::Post;
 use crate::ScrapedPost;
 use crate::ScrapedPostImage;
+use crate::User;
 use reqwest::header::AUTHORIZATION;
 use scraper::Html;
 use std::sync::Arc;
@@ -129,6 +130,26 @@ impl Client {
         let post: ApiResponse<_> = response.error_for_status()?.json().await?;
 
         Ok(post.data)
+    }
+
+    /// Get a user by username.
+    ///
+    /// # Authorization
+    /// This function does REQUIRES a token.
+    pub async fn get_user(&self, username: &str) -> Result<User, Error> {
+        let token = self.get_token().ok_or(Error::MissingToken)?;
+        let url = format!("https://api.imgchest.com/v1/user/{username}");
+
+        let response = self
+            .client
+            .get(url)
+            .header(AUTHORIZATION, format!("Bearer {token}"))
+            .send()
+            .await?;
+
+        let user: ApiResponse<_> = response.error_for_status()?.json().await?;
+
+        Ok(user.data)
     }
 }
 

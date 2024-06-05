@@ -9,6 +9,7 @@ pub use crate::model::Post;
 pub use crate::model::PostImage;
 pub use crate::model::ScrapedPost;
 pub use crate::model::ScrapedPostImage;
+pub use crate::model::User;
 
 /// The error
 #[derive(Debug, thiserror::Error)]
@@ -220,5 +221,24 @@ mod test {
         assert!(post.images[3].original_name.is_none());
 
         dbg!(&post);
+    }
+
+    #[tokio::test]
+    async fn get_user() {
+        let client = Client::new();
+        client.set_token(get_token());
+
+        let user = client
+            .get_user("LunarLandr")
+            .await
+            .expect("failed to get user");
+
+        assert!(&*user.name == "LunarLandr");
+        assert!(
+            user.created
+                == OffsetDateTime::parse("2019-09-25T01:00:45.000000Z", &Iso8601::DEFAULT).unwrap()
+        );
+
+        dbg!(&user);
     }
 }
