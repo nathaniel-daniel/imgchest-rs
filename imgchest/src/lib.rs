@@ -1,20 +1,21 @@
-mod post;
+mod client;
+mod model;
 
-pub use self::post::FromElementError as InvalidPostImageError;
-pub use self::post::FromHtmlError as InvalidPostError;
-pub use self::post::Image as PostImage;
-pub use self::post::Post;
-use scraper::Html;
+pub use self::client::Client;
+pub use crate::model::InvalidPostError;
+pub use crate::model::InvalidPostImageError;
+pub use crate::model::Post;
+pub use crate::model::PostImage;
 
 /// The error
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     /// Reqwest error
-    #[error(transparent)]
+    #[error("reqwest http error")]
     Reqwest(#[from] reqwest::Error),
 
     /// Failed to join tokio task
-    #[error(transparent)]
+    #[error("failed to join tokio task")]
     TokioJoin(#[from] tokio::task::JoinError),
 
     /// Failed to parse post
@@ -24,73 +25,6 @@ pub enum Error {
     /// Failed to parse a post image
     #[error("invalid post image")]
     InvalidPostImage(#[from] InvalidPostImageError),
-}
-
-/// The client
-#[derive(Debug, Clone)]
-pub struct Client {
-    /// The inner http client
-    pub client: reqwest::Client,
-}
-
-impl Client {
-    /// Make a new client
-    pub fn new() -> Self {
-        Self {
-            client: reqwest::Client::builder()
-                .cookie_store(true)
-                .build()
-                .expect("failed to build client"),
-        }
-    }
-
-    /// Get a post from a url
-    pub async fn get_post(&self, url: &str) -> Result<Post, Error> {
-        let text = self
-            .client
-            .get(url)
-            .send()
-            .await?
-            .error_for_status()?
-            .text()
-            .await?;
-        Ok(tokio::task::spawn_blocking(move || {
-            let html = Html::parse_document(text.as_str());
-            Post::from_html(&html)
-        })
-        .await??)
-    }
-
-    /// Load extra images for a post
-    pub async fn load_extra_images_for_post(&self, post: &Post) -> Result<Vec<PostImage>, Error> {
-        let url = format!("https://imgchest.com/p/{}/loadAll", post.id);
-        let text = self
-            .client
-            .post(url.as_str())
-            .header("x-requested-with", "XMLHttpRequest")
-            .form(&[("_token", post.token.as_str())])
-            .send()
-            .await?
-            .error_for_status()?
-            .text()
-            .await?;
-
-        Ok(tokio::task::spawn_blocking(move || {
-            let html = Html::parse_fragment(&text);
-            html.root_element()
-                .children()
-                .filter_map(scraper::ElementRef::wrap)
-                .map(PostImage::from_element)
-                .collect::<Result<Vec<_>, _>>()
-        })
-        .await??)
-    }
-}
-
-impl Default for Client {
-    fn default() -> Self {
-        Self::new()
-    }
 }
 
 #[cfg(test)]
