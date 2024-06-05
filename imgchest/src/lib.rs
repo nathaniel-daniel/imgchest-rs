@@ -38,6 +38,8 @@ pub enum Error {
 mod test {
     use super::*;
     use std::sync::OnceLock;
+    use time::format_description::well_known::Iso8601;
+    use time::OffsetDateTime;
 
     const POST_URL: &str = "https://imgchest.com/p/3qe4gdvj4j2";
     const VIDEO_POST_URL: &str = "https://imgchest.com/p/pwl7lgepyx2";
@@ -167,7 +169,10 @@ mod test {
         assert!(post.views >= 198);
         assert!(post.nsfw == 0);
         assert!(post.image_count == 4);
-        assert!(&*post.created == "2019-11-03T00:36:00.000000Z");
+        assert!(
+            post.created
+                == OffsetDateTime::parse("2019-11-03T00:36:00.000000Z", &Iso8601::DEFAULT).unwrap()
+        );
         assert!(post.delete_url.is_none());
 
         assert!(&*post.images[0].id == "nw7w6cmlvye");
@@ -178,28 +183,40 @@ mod test {
             .starts_with("**Description**  \nReleased in the arcades in 1981, Donkey Kong"));
         assert!(&*post.images[0].link == "https://cdn.imgchest.com/files/nw7w6cmlvye.png");
         assert!(post.images[0].position.get() == 1);
-        assert!(&*post.images[0].created == "2019-11-03T00:36:00.000000Z");
+        assert!(
+            post.images[0].created
+                == OffsetDateTime::parse("2019-11-03T00:36:00.000000Z", &Iso8601::DEFAULT).unwrap()
+        );
         assert!(post.images[0].original_name.is_none());
 
         assert!(&*post.images[1].id == "kwye3cpag4b");
         assert!(post.images[1].description.as_deref() == Some("amstrad - apple ii - atari - colecovision - c64 - msx\nnes - pc - vic-20 - spectrum - tI-99 4A - arcade"));
         assert!(&*post.images[1].link == "https://cdn.imgchest.com/files/kwye3cpag4b.png");
         assert!(post.images[1].position.get() == 2);
-        assert!(&*post.images[1].created == "2019-11-03T00:36:00.000000Z");
+        assert!(
+            post.images[1].created
+                == OffsetDateTime::parse("2019-11-03T00:36:00.000000Z", &Iso8601::DEFAULT).unwrap()
+        );
         assert!(post.images[1].original_name.is_none());
 
         assert!(&*post.images[2].id == "5g4z9c8ok72");
-        assert!(dbg!(&post.images[2].description).is_none());
+        assert!(&post.images[2].description.is_none());
         assert!(&*post.images[2].link == "https://cdn.imgchest.com/files/5g4z9c8ok72.png");
         assert!(post.images[2].position.get() == 3);
-        assert!(&*post.images[2].created == "2019-11-03T00:36:00.000000Z");
+        assert!(
+            post.images[2].created
+                == OffsetDateTime::parse("2019-11-03T00:36:00.000000Z", &Iso8601::DEFAULT).unwrap()
+        );
         assert!(post.images[2].original_name.is_none());
 
         assert!(&*post.images[3].id == "we4gdcv5j4r");
         assert!(post.images[3].description.is_none());
         assert!(&*post.images[3].link == "https://cdn.imgchest.com/files/we4gdcv5j4r.jpg");
         assert!(post.images[3].position.get() == 4);
-        assert!(&*post.images[3].created == "2019-11-03T00:36:00.000000Z");
+        assert!(
+            post.images[3].created
+                == OffsetDateTime::parse("2019-11-03T00:36:00.000000Z", &Iso8601::DEFAULT).unwrap()
+        );
         assert!(post.images[3].original_name.is_none());
 
         dbg!(&post);

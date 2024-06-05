@@ -1,5 +1,5 @@
-use serde::Serialize;
 use std::num::NonZeroU32;
+use time::OffsetDateTime;
 
 /// An API post object
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
@@ -29,7 +29,8 @@ pub struct Post {
     pub image_count: u64,
 
     /// The time this was created
-    pub created: Box<str>,
+    #[serde(with = "time::serde::iso8601")]
+    pub created: OffsetDateTime,
 
     /// The images of this post
     pub images: Box<[Image]>,
@@ -49,10 +50,7 @@ pub struct Image {
     pub id: Box<str>,
 
     /// The image description
-    #[serde(
-        deserialize_with = "de_empty_string_is_none",
-        serialize_with = "ser_empty_string_is_none"
-    )]
+    #[serde(with = "maybe_box_str_empty_str_is_none")]
     pub description: Option<Box<str>>,
 
     /// The link to the image file
@@ -63,8 +61,9 @@ pub struct Image {
     /// Starts at 1.
     pub position: NonZeroU32,
 
-    /// The time this image was created
-    pub created: Box<str>,
+    /// The time this image was created.
+    #[serde(with = "time::serde::iso8601")]
+    pub created: OffsetDateTime,
 
     /// The original name of the image.
     ///
@@ -74,25 +73,29 @@ pub struct Image {
     // extra: std::collections::HashMap<Box<str>, serde_json::Value>,
 }
 
-fn de_empty_string_is_none<'de, D>(deserializer: D) -> Result<Option<Box<str>>, D::Error>
-where
-    D: serde::Deserializer<'de>,
-{
-    let s: Box<str> = serde::Deserialize::deserialize(deserializer)?;
-    if s.is_empty() {
-        Ok(None)
-    } else {
-        Ok(Some(s))
-    }
-}
+mod maybe_box_str_empty_str_is_none {
+    use serde::Serialize;
 
-fn ser_empty_string_is_none<S>(option: &Option<Box<str>>, serializer: S) -> Result<S::Ok, S::Error>
-where
-    S: serde::Serializer,
-{
-    if let Some(value) = option {
-        value.as_ref().serialize(serializer)
-    } else {
-        "".serialize(serializer)
+    pub(crate) fn deserialize<'de, D>(deserializer: D) -> Result<Option<Box<str>>, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let s: Box<str> = serde::Deserialize::deserialize(deserializer)?;
+        if s.is_empty() {
+            Ok(None)
+        } else {
+            Ok(Some(s))
+        }
+    }
+
+    pub(crate) fn serialize<S>(option: &Option<Box<str>>, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        if let Some(value) = option {
+            value.as_ref().serialize(serializer)
+        } else {
+            "".serialize(serializer)
+        }
     }
 }

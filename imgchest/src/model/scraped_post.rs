@@ -191,13 +191,13 @@ pub enum FromElementError {
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct Image {
     /// The image id
-    pub id: String,
+    pub id: Box<str>,
 
     /// The image description
-    pub description: Option<String>,
+    pub description: Option<Box<str>>,
 
     /// The image link
-    pub link: String,
+    pub link: Box<str>,
     // /// The image position
     // pub position: u32,
 
@@ -206,7 +206,7 @@ pub struct Image {
     /// The link of the video, if it exists
     ///
     /// Note that this field is not present on the real api.
-    pub video_link: Option<String>,
+    pub video_link: Option<Box<str>>,
 }
 
 impl Image {
@@ -222,7 +222,7 @@ impl Image {
         let id = element
             .value()
             .attr("id")
-            .and_then(|id| Some(id.split('-').nth(1)?.to_string()))
+            .and_then(|id| id.split('-').nth(1))
             .ok_or(FromElementError::MissingId)?;
 
         let mut description = String::with_capacity(256);
@@ -240,22 +240,22 @@ impl Image {
         }
         let description = match description.is_empty() {
             true => None,
-            false => Some(description),
+            false => Some(description.into()),
         };
 
         let link = element
             .select(&LINK_SELECTOR)
             .next()
-            .and_then(|a| Some(a.value().attr("data-url")?.to_string()))
+            .and_then(|a| Some(a.value().attr("data-url")?.into()))
             .ok_or(FromElementError::MissingLink)?;
 
         let video_link = element
             .select(&VIDEO_LINK_SELECTOR)
             .next()
-            .and_then(|src| Some(src.value().attr("src")?.to_string()));
+            .and_then(|src| Some(src.value().attr("src")?.into()));
 
         Ok(Self {
-            id,
+            id: id.into(),
             description,
             link,
             video_link,
