@@ -51,7 +51,7 @@ async fn async_main(options: Options) -> anyhow::Result<()> {
     match options.subcommand {
         Subcommand::Download(options) => {
             let post = client
-                .get_post(options.url.as_str())
+                .get_scraped_post(options.url.as_str())
                 .await
                 .context("failed to get post")?;
 
@@ -75,7 +75,7 @@ async fn async_main(options: Options) -> anyhow::Result<()> {
 
             if let Some(extra_image_count) = post.extra_image_count {
                 let extra_images = client
-                    .load_extra_images_for_post(&post)
+                    .load_extra_images_for_scraped_post(&post)
                     .await
                     .context("failed to load extra for post")?;
 
@@ -118,7 +118,7 @@ async fn async_main(options: Options) -> anyhow::Result<()> {
 fn spawn_image_download(
     client: &imgchest::Client,
     join_set: &mut JoinSet<anyhow::Result<bool>>,
-    image: &imgchest::PostImage,
+    image: &imgchest::ScrapedPostImage,
     out_dir: &Path,
 ) {
     {

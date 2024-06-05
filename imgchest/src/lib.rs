@@ -2,10 +2,10 @@ mod client;
 mod model;
 
 pub use self::client::Client;
-pub use crate::model::InvalidPostError;
-pub use crate::model::InvalidPostImageError;
-pub use crate::model::Post;
-pub use crate::model::PostImage;
+pub use crate::model::InvalidScrapedPostError;
+pub use crate::model::InvalidScrapedPostImageError;
+pub use crate::model::ScrapedPost;
+pub use crate::model::ScrapedPostImage;
 
 /// The error
 #[derive(Debug, thiserror::Error)]
@@ -19,12 +19,12 @@ pub enum Error {
     TokioJoin(#[from] tokio::task::JoinError),
 
     /// Failed to parse post
-    #[error("invalid post")]
-    InvalidPost(#[from] InvalidPostError),
+    #[error("invalid scraped post")]
+    InvalidScrapedPost(#[from] InvalidScrapedPostError),
 
-    /// Failed to parse a post image
-    #[error("invalid post image")]
-    InvalidPostImage(#[from] InvalidPostImageError),
+    /// Failed to parse a scraped post image
+    #[error("invalid scraped post image")]
+    InvalidScrapedPostImage(#[from] InvalidScrapedPostImageError),
 }
 
 #[cfg(test)]
@@ -35,9 +35,12 @@ mod test {
     const VIDEO_POST_URL: &str = "https://imgchest.com/p/pwl7lgepyx2";
 
     #[tokio::test]
-    async fn get_post() {
+    async fn get_scraped_post() {
         let client = Client::new();
-        let post = client.get_post(POST_URL).await.expect("failed to get post");
+        let post = client
+            .get_scraped_post(POST_URL)
+            .await
+            .expect("failed to get scraped post");
         assert!(post.id == "3qe4gdvj4j2");
         assert!(post.title == "Donkey Kong - Video Game From The Mid 80's");
         assert!(post.username == "LunarLandr");
@@ -76,10 +79,10 @@ mod test {
     }
 
     #[tokio::test]
-    async fn get_video_post() {
+    async fn get_scraped_video_post() {
         let client = Client::new();
         let post = client
-            .get_post(VIDEO_POST_URL)
+            .get_scraped_post(VIDEO_POST_URL)
             .await
             .expect("failed to get post");
 

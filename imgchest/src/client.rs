@@ -1,6 +1,6 @@
 use crate::Error;
-use crate::Post;
-use crate::PostImage;
+use crate::ScrapedPost;
+use crate::ScrapedPostImage;
 use scraper::Html;
 
 /// The client
@@ -21,8 +21,11 @@ impl Client {
         Self { client }
     }
 
-    /// Get a post from a url
-    pub async fn get_post(&self, url: &str) -> Result<Post, Error> {
+    /// Scrape a post from a url.
+    ///
+    /// # Authorization
+    /// This function does NOT require the use of a token.
+    pub async fn get_scraped_post(&self, url: &str) -> Result<ScrapedPost, Error> {
         let text = self
             .client
             .get(url)
@@ -31,15 +34,23 @@ impl Client {
             .error_for_status()?
             .text()
             .await?;
-        Ok(tokio::task::spawn_blocking(move || {
+        let post = tokio::task::spawn_blocking(move || {
             let html = Html::parse_document(text.as_str());
-            Post::from_html(&html)
+            ScrapedPost::from_html(&html)
         })
-        .await??)
+        .await??;
+
+        Ok(post)
     }
 
-    /// Load extra images for a post
-    pub async fn load_extra_images_for_post(&self, post: &Post) -> Result<Vec<PostImage>, Error> {
+    /// Load extra images for a scraped post.
+    ///
+    /// # Authorization
+    /// This function does NOT require the use of a token.
+    pub async fn load_extra_images_for_scraped_post(
+        &self,
+        post: &ScrapedPost,
+    ) -> Result<Vec<ScrapedPostImage>, Error> {
         let url = format!("https://imgchest.com/p/{}/loadAll", post.id);
         let text = self
             .client
@@ -57,7 +68,7 @@ impl Client {
             html.root_element()
                 .children()
                 .filter_map(scraper::ElementRef::wrap)
-                .map(PostImage::from_element)
+                .map(ScrapedPostImage::from_element)
                 .collect::<Result<Vec<_>, _>>()
         })
         .await??;

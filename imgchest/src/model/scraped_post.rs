@@ -31,7 +31,7 @@ pub enum FromHtmlError {
 /// A Post
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub struct Post {
+pub struct ScrapedPost {
     /// The id of the post
     pub id: String,
 
@@ -71,7 +71,7 @@ pub struct Post {
     pub token: String,
 }
 
-impl Post {
+impl ScrapedPost {
     /// Parse this from html
     pub(crate) fn from_html(html: &Html) -> Result<Self, FromHtmlError> {
         static ID_SELECTOR: Lazy<Selector> =
