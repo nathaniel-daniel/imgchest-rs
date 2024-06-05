@@ -2,8 +2,11 @@ mod client;
 mod model;
 
 pub use self::client::Client;
+use crate::model::ApiResponse;
 pub use crate::model::InvalidScrapedPostError;
 pub use crate::model::InvalidScrapedPostImageError;
+pub use crate::model::Post;
+pub use crate::model::PostImage;
 pub use crate::model::ScrapedPost;
 pub use crate::model::ScrapedPostImage;
 
@@ -73,9 +76,9 @@ mod test {
             .get_scraped_post(POST_URL)
             .await
             .expect("failed to get scraped post");
-        assert!(post.id == "3qe4gdvj4j2");
-        assert!(post.title == "Donkey Kong - Video Game From The Mid 80's");
-        assert!(post.username == "LunarLandr");
+        assert!(&*post.id == "3qe4gdvj4j2");
+        assert!(&*post.title == "Donkey Kong - Video Game From The Mid 80's");
+        assert!(&*post.username == "LunarLandr");
         // assert!(post.privacy == "public");
         // assert!(post.report_status == 1);
         assert!(post.views >= 198);
@@ -83,28 +86,28 @@ mod test {
         assert!(post.image_count == 4);
         // assert!(post.created == "2019-11-03T00:36:00.000000Z");
 
-        assert!(post.images[0].id == "nw7w6cmlvye");
+        assert!(&*post.images[0].id == "nw7w6cmlvye");
         assert!(post.images[0]
             .description
             .as_ref()
             .expect("missing description")
             .starts_with("Released in the arcades in 1981, Donkey Kong"));
-        assert!(post.images[0].link == "https://cdn.imgchest.com/files/nw7w6cmlvye.png");
+        assert!(&*post.images[0].link == "https://cdn.imgchest.com/files/nw7w6cmlvye.png");
         assert!(post.images[0].video_link.is_none());
 
-        assert!(post.images[1].id == "kwye3cpag4b");
+        assert!(&*post.images[1].id == "kwye3cpag4b");
         assert!(post.images[1].description.as_deref() == Some("amstrad - apple ii - atari - colecovision - c64 - msx\nnes - pc - vic-20 - spectrum - tI-99 4A - arcade"));
-        assert!(post.images[1].link == "https://cdn.imgchest.com/files/kwye3cpag4b.png");
+        assert!(&*post.images[1].link == "https://cdn.imgchest.com/files/kwye3cpag4b.png");
         assert!(post.images[1].video_link.is_none());
 
-        assert!(post.images[2].id == "5g4z9c8ok72");
+        assert!(&*post.images[2].id == "5g4z9c8ok72");
         assert!(post.images[2].description.is_none());
-        assert!(post.images[2].link == "https://cdn.imgchest.com/files/5g4z9c8ok72.png");
+        assert!(&*post.images[2].link == "https://cdn.imgchest.com/files/5g4z9c8ok72.png");
         assert!(post.images[2].video_link.is_none());
 
-        assert!(post.images[3].id == "we4gdcv5j4r");
+        assert!(&*post.images[3].id == "we4gdcv5j4r");
         assert!(post.images[3].description.is_none());
-        assert!(post.images[3].link == "https://cdn.imgchest.com/files/we4gdcv5j4r.jpg");
+        assert!(&*post.images[3].link == "https://cdn.imgchest.com/files/we4gdcv5j4r.jpg");
         assert!(post.images[3].video_link.is_none());
 
         dbg!(&post);
@@ -118,15 +121,15 @@ mod test {
             .await
             .expect("failed to get post");
 
-        assert!(post.id == "pwl7lgepyx2");
-        assert!(post.title == "PDN AGIF Issue #1");
-        assert!(post.username == "Jacob");
+        assert!(&*post.id == "pwl7lgepyx2");
+        assert!(&*post.title == "PDN AGIF Issue #1");
+        assert!(&*post.username == "Jacob");
         assert!(post.views >= 2537);
         assert!(post.image_count == 1);
 
-        assert!(post.images[0].id == "6yxkcz5ml7w");
+        assert!(&*post.images[0].id == "6yxkcz5ml7w");
         assert!(post.images[0].description.as_deref() == Some("Notice how inserting an AGIF is now supported, but does not want to be moved from its initial position."));
-        assert!(post.images[0].link == "https://cdn.imgchest.com/files/6yxkcz5ml7w.gif");
+        assert!(&*post.images[0].link == "https://cdn.imgchest.com/files/6yxkcz5ml7w.gif");
         assert!(
             post.images[0].video_link.as_deref()
                 == Some("https://cdn.imgchest.com/files/6yxkcz5ml7w.mp4")
@@ -155,5 +158,50 @@ mod test {
             .get_post("3qe4gdvj4j2")
             .await
             .expect("failed to get post");
+
+        assert!(&*post.id == "3qe4gdvj4j2");
+        assert!(&*post.title == "Donkey Kong - Video Game From The Mid 80's");
+        assert!(&*post.username == "LunarLandr");
+        assert!(&*post.privacy == "public");
+        assert!(post.report_status == 1);
+        assert!(post.views >= 198);
+        assert!(post.nsfw == 0);
+        assert!(post.image_count == 4);
+        assert!(&*post.created == "2019-11-03T00:36:00.000000Z");
+        assert!(post.delete_url.is_none());
+
+        assert!(&*post.images[0].id == "nw7w6cmlvye");
+        assert!(post.images[0]
+            .description
+            .as_ref()
+            .expect("missing description")
+            .starts_with("**Description**  \nReleased in the arcades in 1981, Donkey Kong"));
+        assert!(&*post.images[0].link == "https://cdn.imgchest.com/files/nw7w6cmlvye.png");
+        assert!(post.images[0].position.get() == 1);
+        assert!(&*post.images[0].created == "2019-11-03T00:36:00.000000Z");
+        assert!(post.images[0].original_name.is_none());
+
+        assert!(&*post.images[1].id == "kwye3cpag4b");
+        assert!(post.images[1].description.as_deref() == Some("amstrad - apple ii - atari - colecovision - c64 - msx\nnes - pc - vic-20 - spectrum - tI-99 4A - arcade"));
+        assert!(&*post.images[1].link == "https://cdn.imgchest.com/files/kwye3cpag4b.png");
+        assert!(post.images[1].position.get() == 2);
+        assert!(&*post.images[1].created == "2019-11-03T00:36:00.000000Z");
+        assert!(post.images[1].original_name.is_none());
+
+        assert!(&*post.images[2].id == "5g4z9c8ok72");
+        assert!(dbg!(&post.images[2].description).is_none());
+        assert!(&*post.images[2].link == "https://cdn.imgchest.com/files/5g4z9c8ok72.png");
+        assert!(post.images[2].position.get() == 3);
+        assert!(&*post.images[2].created == "2019-11-03T00:36:00.000000Z");
+        assert!(post.images[2].original_name.is_none());
+
+        assert!(&*post.images[3].id == "we4gdcv5j4r");
+        assert!(post.images[3].description.is_none());
+        assert!(&*post.images[3].link == "https://cdn.imgchest.com/files/we4gdcv5j4r.jpg");
+        assert!(post.images[3].position.get() == 4);
+        assert!(&*post.images[3].created == "2019-11-03T00:36:00.000000Z");
+        assert!(post.images[3].original_name.is_none());
+
+        dbg!(&post);
     }
 }

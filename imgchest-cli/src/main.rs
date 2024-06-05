@@ -55,7 +55,7 @@ async fn async_main(options: Options) -> anyhow::Result<()> {
                 .await
                 .context("failed to get post")?;
 
-            let out_dir = options.out_dir.join(&post.id);
+            let out_dir = options.out_dir.join(&*post.id);
 
             tokio::fs::create_dir_all(&out_dir)
                 .await

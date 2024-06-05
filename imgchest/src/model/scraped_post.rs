@@ -29,17 +29,16 @@ pub enum FromHtmlError {
 }
 
 /// A Post
-#[derive(Debug, Clone)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct ScrapedPost {
     /// The id of the post
-    pub id: String,
+    pub id: Box<str>,
 
     /// The title of the post
-    pub title: String,
+    pub title: Box<str>,
 
     /// The author of the post
-    pub username: String,
+    pub username: Box<str>,
 
     // /// The post privacy
     // pub privacy: String,
@@ -57,18 +56,18 @@ pub struct ScrapedPost {
     // /// The timestamp of post creation
     // pub created: String,
     /// Post images
-    pub images: Vec<Image>,
+    pub images: Box<[Image]>,
 
     /// The number of extra images.
     ///
-    /// Note that this is not part of the official api object.
+    /// This is not part of the official api object.
     pub extra_image_count: Option<u32>,
 
     /// The csrf token for the page
     ///
     /// Only useful for loading more image data.
-    /// Note that this is not part of the official api object.
-    pub token: String,
+    /// This is not part of the official api object.
+    pub token: Box<str>,
 }
 
 impl ScrapedPost {
@@ -97,14 +96,15 @@ impl ScrapedPost {
                     meta.value()
                         .attr("content")?
                         .strip_prefix("https://imgchest.com/p/")?
-                        .to_string(),
+                        .into(),
                 )
             })
             .ok_or(FromHtmlError::MissingId)?;
+
         let title = html
             .select(&TITLE_SELECTOR)
             .next()
-            .and_then(|meta| Some(meta.value().attr("content")?.trim().to_string()))
+            .and_then(|meta| Some(meta.value().attr("content")?.trim().into()))
             .ok_or(FromHtmlError::MissingTitle)?;
 
         let username = html
@@ -115,7 +115,7 @@ impl ScrapedPost {
                     a.value()
                         .attr("href")?
                         .strip_prefix("https://imgchest.com/u/")?
-                        .to_string(),
+                        .into(),
                 )
             })
             .ok_or(FromHtmlError::MissingUsername)?;
@@ -159,7 +159,7 @@ impl ScrapedPost {
         let token = html
             .select(&TOKEN_SELECTOR)
             .next()
-            .and_then(|meta| Some(meta.value().attr("content")?.to_string()))
+            .and_then(|meta| Some(meta.value().attr("content")?.into()))
             .ok_or(FromHtmlError::MissingToken)?;
 
         Ok(Self {
@@ -168,7 +168,7 @@ impl ScrapedPost {
             username,
             views,
             image_count,
-            images,
+            images: images.into(),
 
             extra_image_count,
             token,
@@ -188,8 +188,7 @@ pub enum FromElementError {
 }
 
 /// A post image
-#[derive(Debug, Clone)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct Image {
     /// The image id
     pub id: String,

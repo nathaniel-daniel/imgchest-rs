@@ -1,4 +1,6 @@
+use crate::ApiResponse;
 use crate::Error;
+use crate::Post;
 use crate::ScrapedPost;
 use crate::ScrapedPostImage;
 use reqwest::header::AUTHORIZATION;
@@ -60,12 +62,13 @@ impl Client {
         &self,
         post: &ScrapedPost,
     ) -> Result<Vec<ScrapedPostImage>, Error> {
-        let url = format!("https://imgchest.com/p/{}/loadAll", post.id);
+        let id = &post.id;
+        let url = format!("https://imgchest.com/p/{id}/loadAll");
         let text = self
             .client
             .post(url.as_str())
             .header("x-requested-with", "XMLHttpRequest")
-            .form(&[("_token", post.token.as_str())])
+            .form(&[("_token", &*post.token)])
             .send()
             .await?
             .error_for_status()?
@@ -86,6 +89,8 @@ impl Client {
     }
 
     /// Set the token to use for future requests.
+    ///
+    /// This allows the use of functions that require authorization.
     pub fn set_token<T>(&self, token: T)
     where
         T: AsRef<str>,
@@ -97,7 +102,7 @@ impl Client {
             .unwrap_or_else(|error| error.into_inner()) = Some(token.as_ref().into());
     }
 
-    /// Get the current token
+    /// Get the current token.
     fn get_token(&self) -> Option<Arc<str>> {
         self.state
             .token
@@ -110,9 +115,10 @@ impl Client {
     ///
     /// # Authorization
     /// This function does REQUIRES a token.
-    pub async fn get_post(&self, id: &str) -> Result<(), Error> {
+    pub async fn get_post(&self, id: &str) -> Result<Post, Error> {
         let token = self.get_token().ok_or(Error::MissingToken)?;
         let url = format!("https://api.imgchest.com/v1/post/{id}");
+
         let response = self
             .client
             .get(url)
@@ -120,10 +126,9 @@ impl Client {
             .send()
             .await?;
 
-        let text = response.error_for_status()?.text().await?;
-        dbg!(text);
+        let post: ApiResponse<_> = response.error_for_status()?.json().await?;
 
-        Ok(())
+        Ok(post.data)
     }
 }
 
