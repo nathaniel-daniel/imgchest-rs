@@ -25,14 +25,46 @@ pub enum Error {
     /// Failed to parse a scraped post image
     #[error("invalid scraped post image")]
     InvalidScrapedPostImage(#[from] InvalidScrapedPostImageError),
+
+    /// Missing a token
+    #[error("missing token")]
+    MissingToken,
 }
 
 #[cfg(test)]
 mod test {
     use super::*;
+    use std::sync::OnceLock;
 
     const POST_URL: &str = "https://imgchest.com/p/3qe4gdvj4j2";
     const VIDEO_POST_URL: &str = "https://imgchest.com/p/pwl7lgepyx2";
+
+    fn get_token() -> &'static str {
+        static TOKEN: OnceLock<String> = OnceLock::new();
+        TOKEN.get_or_init(|| {
+            let token_env = std::env::var_os("IMGCHEST_TOKEN").map(|token| {
+                token
+                    .into_string()
+                    .expect("\"IMGCHEST_TOKEN\" env var value is not valid unicode")
+            });
+
+            if let Some(token) = token_env {
+                return token;
+            }
+
+            let token_file = match std::fs::read_to_string("token.txt") {
+                Ok(token) => Some(token),
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
+                Err(error) => panic!("failed to read token from file: {error}"),
+            };
+
+            if let Some(token) = token_file {
+                return token;
+            }
+
+            panic!("missing token");
+        })
+    }
 
     #[tokio::test]
     async fn get_scraped_post() {
@@ -101,5 +133,27 @@ mod test {
         );
 
         dbg!(&post);
+    }
+
+    #[tokio::test]
+    async fn get_post_no_token() {
+        let client = Client::new();
+
+        let err = client
+            .get_post("3qe4gdvj4j2")
+            .await
+            .expect_err("succeeded getting post with no token");
+        assert!(matches!(err, Error::MissingToken));
+    }
+
+    #[tokio::test]
+    async fn get_post() {
+        let client = Client::new();
+        client.set_token(get_token());
+
+        let post = client
+            .get_post("3qe4gdvj4j2")
+            .await
+            .expect("failed to get post");
     }
 }
