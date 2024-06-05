@@ -1,8 +1,9 @@
 use crate::ApiResponse;
 use crate::Error;
 use crate::Post;
+use crate::PostFile;
 use crate::ScrapedPost;
-use crate::ScrapedPostImage;
+use crate::ScrapedPostFile;
 use crate::User;
 use reqwest::header::AUTHORIZATION;
 use scraper::Html;
@@ -55,14 +56,14 @@ impl Client {
         Ok(post)
     }
 
-    /// Load extra images for a scraped post.
+    /// Load extra files for a scraped post.
     ///
     /// # Authorization
     /// This function does NOT require the use of a token.
-    pub async fn load_extra_images_for_scraped_post(
+    pub async fn load_extra_files_for_scraped_post(
         &self,
         post: &ScrapedPost,
-    ) -> Result<Vec<ScrapedPostImage>, Error> {
+    ) -> Result<Vec<ScrapedPostFile>, Error> {
         let id = &post.id;
         let url = format!("https://imgchest.com/p/{id}/loadAll");
         let text = self
@@ -81,7 +82,7 @@ impl Client {
             html.root_element()
                 .children()
                 .filter_map(scraper::ElementRef::wrap)
-                .map(ScrapedPostImage::from_element)
+                .map(ScrapedPostFile::from_element)
                 .collect::<Result<Vec<_>, _>>()
         })
         .await??;
@@ -150,6 +151,31 @@ impl Client {
         let user: ApiResponse<_> = response.error_for_status()?.json().await?;
 
         Ok(user.data)
+    }
+
+    /// Get a file by id.
+    ///
+    /// Currently, this is implemented according to the API spec,
+    /// but the API will always return no data for some reason.
+    /// It is likely that this endpoint is disabled.
+    /// As a result, this function is currently useless.
+    ///
+    /// # Authorization
+    /// This function does REQUIRES a token.
+    pub async fn get_file(&self, id: &str) -> Result<PostFile, Error> {
+        let token = self.get_token().ok_or(Error::MissingToken)?;
+        let url = format!("https://api.imgchest.com/v1/file/{id}");
+
+        let response = self
+            .client
+            .get(url)
+            .header(AUTHORIZATION, format!("Bearer {token}"))
+            .send()
+            .await?;
+
+        let file: ApiResponse<_> = response.error_for_status()?.json().await?;
+
+        Ok(file.data)
     }
 }
 

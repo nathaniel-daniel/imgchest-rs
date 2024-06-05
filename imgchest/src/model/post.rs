@@ -32,8 +32,8 @@ pub struct Post {
     #[serde(with = "time::serde::iso8601")]
     pub created: OffsetDateTime,
 
-    /// The images of this post
-    pub images: Box<[Image]>,
+    /// The files of this post
+    pub images: Box<[File]>,
 
     /// The url to delete this post
     ///
@@ -43,9 +43,9 @@ pub struct Post {
     // extra: std::collections::HashMap<Box<str>, serde_json::Value>,
 }
 
-/// An API image of a post
+/// An API file of a post
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
-pub struct Image {
+pub struct File {
     /// The id of the image
     pub id: Box<str>,
 

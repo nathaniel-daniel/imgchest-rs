@@ -74,14 +74,14 @@ async fn async_main(options: Options) -> anyhow::Result<()> {
             }
 
             if let Some(extra_image_count) = post.extra_image_count {
-                let extra_images = client
-                    .load_extra_images_for_scraped_post(&post)
+                let extra_files = client
+                    .load_extra_files_for_scraped_post(&post)
                     .await
                     .context("failed to load extra for post")?;
 
-                ensure!(extra_images.len() == usize::try_from(extra_image_count)?);
+                ensure!(extra_files.len() == usize::try_from(extra_image_count)?);
 
-                for image in extra_images.iter() {
+                for image in extra_files.iter() {
                     if image.video_link.is_some() {
                         total_downloads += 1;
                     }
@@ -118,13 +118,13 @@ async fn async_main(options: Options) -> anyhow::Result<()> {
 fn spawn_image_download(
     client: &imgchest::Client,
     join_set: &mut JoinSet<anyhow::Result<bool>>,
-    image: &imgchest::ScrapedPostImage,
+    file: &imgchest::ScrapedPostFile,
     out_dir: &Path,
 ) {
     {
         let client = client.clone();
-        let link = image.link.clone();
-        let out_path_result = image
+        let link = file.link.clone();
+        let out_path_result = file
             .link
             .split('/')
             .next_back()
@@ -145,7 +145,7 @@ fn spawn_image_download(
         });
     }
 
-    if let Some(video_link) = image.video_link.clone() {
+    if let Some(video_link) = file.video_link.clone() {
         let client = client.clone();
         let out_path_result = video_link
             .split('/')

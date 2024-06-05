@@ -56,7 +56,7 @@ pub struct ScrapedPost {
     // /// The timestamp of post creation
     // pub created: String,
     /// Post images
-    pub images: Box<[Image]>,
+    pub images: Box<[File]>,
 
     /// The number of extra images.
     ///
@@ -81,7 +81,7 @@ impl ScrapedPost {
             Lazy::new(|| Selector::parse("a[href^=\"https://imgchest.com/u/\"]").unwrap());
         static VIEWS_SELECTOR: Lazy<Selector> =
             Lazy::new(|| Selector::parse("meta[name=\"twitter:description\"]").unwrap());
-        static POST_IMAGE_SELECTOR: Lazy<Selector> =
+        static POST_FILE_SELECTOR: Lazy<Selector> =
             Lazy::new(|| Selector::parse("#post-images > div[id^=\"image\"]").unwrap());
         static LOAD_MORE_SELECTOR: Lazy<Selector> =
             Lazy::new(|| Selector::parse("#post-images .load-all").unwrap());
@@ -136,8 +136,8 @@ impl ScrapedPost {
             .ok_or(FromHtmlError::MissingViews)??;
 
         let images = html
-            .select(&POST_IMAGE_SELECTOR)
-            .map(Image::from_element)
+            .select(&POST_FILE_SELECTOR)
+            .map(File::from_element)
             .collect::<Result<Vec<_>, _>>()?;
 
         let extra_image_count: Option<u32> =
@@ -187,21 +187,21 @@ pub enum FromElementError {
     MissingLink,
 }
 
-/// A post image
+/// A post file
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-pub struct Image {
-    /// The image id
+pub struct File {
+    /// The file id
     pub id: Box<str>,
 
-    /// The image description
+    /// The file description
     pub description: Option<Box<str>>,
 
-    /// The image link
+    /// The file link
     pub link: Box<str>,
-    // /// The image position
+    // /// The file position
     // pub position: u32,
 
-    // /// The image creation time
+    // /// The file creation time
     // pub created: u32,
     /// The link of the video, if it exists
     ///
@@ -209,7 +209,7 @@ pub struct Image {
     pub video_link: Option<Box<str>>,
 }
 
-impl Image {
+impl File {
     /// Try to parse this from an element
     pub(crate) fn from_element(element: ElementRef<'_>) -> Result<Self, FromElementError> {
         static DESCRIPTION_SELECTOR: Lazy<Selector> =

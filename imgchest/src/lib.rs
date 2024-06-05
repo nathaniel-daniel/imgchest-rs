@@ -4,11 +4,11 @@ mod model;
 pub use self::client::Client;
 use crate::model::ApiResponse;
 pub use crate::model::InvalidScrapedPostError;
-pub use crate::model::InvalidScrapedPostImageError;
+pub use crate::model::InvalidScrapedPostFileError;
 pub use crate::model::Post;
-pub use crate::model::PostImage;
+pub use crate::model::PostFile;
 pub use crate::model::ScrapedPost;
-pub use crate::model::ScrapedPostImage;
+pub use crate::model::ScrapedPostFile;
 pub use crate::model::User;
 
 /// The error
@@ -26,9 +26,9 @@ pub enum Error {
     #[error("invalid scraped post")]
     InvalidScrapedPost(#[from] InvalidScrapedPostError),
 
-    /// Failed to parse a scraped post image
-    #[error("invalid scraped post image")]
-    InvalidScrapedPostImage(#[from] InvalidScrapedPostImageError),
+    /// Failed to parse a scraped post file
+    #[error("invalid scraped post file")]
+    InvalidScrapedPostFile(#[from] InvalidScrapedPostFileError),
 
     /// Missing a token
     #[error("missing token")]
@@ -241,4 +241,34 @@ mod test {
 
         dbg!(&user);
     }
+
+    // Endpoint appears disabled
+    /*
+    #[tokio::test]
+    async fn get_file() {
+        let client = Client::new();
+        client.set_token(get_token());
+
+        let file = client
+            .get_file("nw7w6cmlvye")
+            .await
+            .expect("failed to get file");
+
+        assert!(&*file.id == "nw7w6cmlvye");
+        assert!(file
+            .description
+            .as_ref()
+            .expect("missing description")
+            .starts_with("**Description**  \nReleased in the arcades in 1981, Donkey Kong"));
+        assert!(&*file.link == "https://cdn.imgchest.com/files/nw7w6cmlvye.png");
+        assert!(file.position.get() == 1);
+        assert!(
+            file.created
+                == OffsetDateTime::parse("2019-11-03T00:36:00.000000Z", &Iso8601::DEFAULT).unwrap()
+        );
+        assert!(file.original_name.is_none());
+
+        dbg!(&file);
+    }
+    */
 }
