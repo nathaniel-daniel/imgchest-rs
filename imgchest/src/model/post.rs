@@ -8,13 +8,13 @@ pub struct Post {
     pub id: Box<str>,
 
     /// The post title
-    pub title: Box<str>,
+    pub title: Option<Box<str>>,
 
     /// The post author's username
     pub username: Box<str>,
 
     /// The privacy of the post
-    pub privacy: Box<str>,
+    pub privacy: Privacy,
 
     /// ?
     pub report_status: i32,
@@ -49,8 +49,7 @@ pub struct File {
     /// The id of the image
     pub id: Box<str>,
 
-    /// The image description
-    #[serde(with = "maybe_box_str_empty_str_is_none")]
+    /// The file description
     pub description: Option<Box<str>>,
 
     /// The link to the image file
@@ -73,29 +72,26 @@ pub struct File {
     // extra: std::collections::HashMap<Box<str>, serde_json::Value>,
 }
 
-mod maybe_box_str_empty_str_is_none {
-    use serde::Serialize;
+/// The post privacy
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash, serde::Serialize, serde::Deserialize)]
+pub enum Privacy {
+    #[serde(rename = "public")]
+    Public,
 
-    pub(crate) fn deserialize<'de, D>(deserializer: D) -> Result<Option<Box<str>>, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        let s: Box<str> = serde::Deserialize::deserialize(deserializer)?;
-        if s.is_empty() {
-            Ok(None)
-        } else {
-            Ok(Some(s))
-        }
-    }
+    #[serde(rename = "hidden")]
+    Hidden,
 
-    pub(crate) fn serialize<S>(option: &Option<Box<str>>, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        if let Some(value) = option {
-            value.as_ref().serialize(serializer)
-        } else {
-            "".serialize(serializer)
+    #[serde(rename = "secret")]
+    Secret,
+}
+
+impl Privacy {
+    /// Get this as a str.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Public => "public",
+            Self::Hidden => "hidden",
+            Self::Secret => "secret",
         }
     }
 }

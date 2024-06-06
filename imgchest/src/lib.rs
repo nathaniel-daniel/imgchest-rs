@@ -2,11 +2,13 @@ mod client;
 mod model;
 
 pub use self::client::Client;
+pub use crate::client::CreatePostRawBuilder;
 use crate::model::ApiResponse;
 pub use crate::model::InvalidScrapedPostError;
 pub use crate::model::InvalidScrapedPostFileError;
 pub use crate::model::Post;
 pub use crate::model::PostFile;
+pub use crate::model::PostPrivacy;
 pub use crate::model::ScrapedPost;
 pub use crate::model::ScrapedPostFile;
 pub use crate::model::User;
@@ -33,6 +35,10 @@ pub enum Error {
     /// Missing a token
     #[error("missing token")]
     MissingToken,
+
+    /// Missing images
+    #[error("missing images")]
+    MissingImages,
 }
 
 #[cfg(test)]
@@ -163,9 +169,9 @@ mod test {
             .expect("failed to get post");
 
         assert!(&*post.id == "3qe4gdvj4j2");
-        assert!(&*post.title == "Donkey Kong - Video Game From The Mid 80's");
+        assert!(post.title.as_deref() == Some("Donkey Kong - Video Game From The Mid 80's"));
         assert!(&*post.username == "LunarLandr");
-        assert!(&*post.privacy == "public");
+        assert!(post.privacy == PostPrivacy::Public);
         assert!(post.report_status == 1);
         assert!(post.views >= 198);
         assert!(post.nsfw == 0);
@@ -201,7 +207,7 @@ mod test {
         assert!(post.images[1].original_name.is_none());
 
         assert!(&*post.images[2].id == "5g4z9c8ok72");
-        assert!(&post.images[2].description.is_none());
+        assert!(post.images[2].description.as_deref() == Some(""));
         assert!(&*post.images[2].link == "https://cdn.imgchest.com/files/5g4z9c8ok72.png");
         assert!(post.images[2].position.get() == 3);
         assert!(
@@ -211,7 +217,7 @@ mod test {
         assert!(post.images[2].original_name.is_none());
 
         assert!(&*post.images[3].id == "we4gdcv5j4r");
-        assert!(post.images[3].description.is_none());
+        assert!(post.images[3].description.as_deref() == Some(""));
         assert!(&*post.images[3].link == "https://cdn.imgchest.com/files/we4gdcv5j4r.jpg");
         assert!(post.images[3].position.get() == 4);
         assert!(

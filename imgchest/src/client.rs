@@ -2,12 +2,88 @@ use crate::ApiResponse;
 use crate::Error;
 use crate::Post;
 use crate::PostFile;
+use crate::PostPrivacy;
 use crate::ScrapedPost;
 use crate::ScrapedPostFile;
 use crate::User;
 use reqwest::header::AUTHORIZATION;
+use reqwest::multipart::Form;
 use scraper::Html;
 use std::sync::Arc;
+
+/// A builder for creating a post.
+///
+/// This builder is for the low-level function.
+#[derive(Debug)]
+pub struct CreatePostRawBuilder {
+    /// The title of the post.
+    pub title: Option<String>,
+
+    /// The post privacy.
+    ///
+    /// Defaults to hidden.
+    pub privacy: Option<PostPrivacy>,
+
+    /// Whether the post should be tied to the user.
+    pub anonymous: Option<bool>,
+
+    /// Whether this post is nsfw.
+    pub nsfw: Option<bool>,
+
+    /// The images of the post
+    pub images: Vec<(String, Vec<u8>)>,
+}
+
+impl CreatePostRawBuilder {
+    /// Create a new builder.
+    pub fn new() -> Self {
+        Self {
+            title: None,
+            privacy: None,
+            anonymous: None,
+            nsfw: None,
+            images: Vec::new(),
+        }
+    }
+
+    /// Set the title.
+    pub fn title(&mut self, title: &str) -> &mut Self {
+        self.title = Some(title.into());
+        self
+    }
+
+    /// Set the post privacy.
+    ///
+    /// Defaults to hidden.
+    pub fn privacy(&mut self, privacy: PostPrivacy) -> &mut Self {
+        self.privacy = Some(privacy);
+        self
+    }
+
+    /// Set whether this post should be anonymous.
+    pub fn anonymous(&mut self, anonymous: bool) -> &mut Self {
+        self.anonymous = Some(anonymous);
+        self
+    }
+
+    /// Set whether this post is nsfw.
+    pub fn nsfw(&mut self, nsfw: bool) -> &mut Self {
+        self.nsfw = Some(nsfw);
+        self
+    }
+
+    /// Add a new image to this post.
+    pub fn image(&mut self, file_name: &str, file_data: Vec<u8>) -> &mut Self {
+        self.images.push((file_name.into(), file_data));
+        self
+    }
+}
+
+impl Default for CreatePostRawBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 /// The client
 #[derive(Debug, Clone)]
@@ -133,6 +209,58 @@ impl Client {
         Ok(post.data)
     }
 
+    /// Create a post.
+    ///
+    /// # Authorization
+    /// This function does REQUIRES a token.
+    pub async fn create_post_raw(
+        &self,
+        data: CreatePostRawBuilder,
+    ) -> Result<serde_json::Value, Error> {
+        let token = self.get_token().ok_or(Error::MissingToken)?;
+        let url = "https://api.imgchest.com/v1/post";
+
+        let mut form = Form::new();
+
+        if let Some(title) = data.title {
+            form = form.text("title", title);
+        }
+
+        if let Some(privacy) = data.privacy {
+            form = form.text("privacy", privacy.as_str());
+        }
+
+        if let Some(anonymous) = data.anonymous {
+            form = form.text("anonymous", bool_to_str(anonymous));
+        }
+
+        if let Some(nsfw) = data.nsfw {
+            form = form.text("nsfw", bool_to_str(nsfw));
+        }
+
+        if data.images.is_empty() {
+            return Err(Error::MissingImages);
+        }
+
+        for (file_name, file_data) in data.images {
+            let part = reqwest::multipart::Part::bytes(file_data).file_name(file_name);
+
+            form = form.part("images[]", part);
+        }
+
+        let response = self
+            .client
+            .post(url)
+            .header(AUTHORIZATION, format!("Bearer {token}"))
+            .multipart(form)
+            .send()
+            .await?;
+
+        let post: ApiResponse<_> = response.error_for_status()?.json().await?;
+
+        Ok(post.data)
+    }
+
     /// Get a user by username.
     ///
     /// # Authorization
@@ -188,4 +316,12 @@ impl Default for Client {
 #[derive(Debug)]
 struct ClientState {
     token: std::sync::RwLock<Option<Arc<str>>>,
+}
+
+fn bool_to_str(b: bool) -> &'static str {
+    if b {
+        "true"
+    } else {
+        "false"
+    }
 }
