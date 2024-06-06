@@ -9,7 +9,9 @@ use crate::User;
 use reqwest::header::AUTHORIZATION;
 use reqwest::multipart::Form;
 use scraper::Html;
+use std::path::Path;
 use std::sync::Arc;
+use tokio_util::codec::{BytesCodec, FramedRead};
 
 /// A builder for creating a post.
 ///
@@ -31,7 +33,7 @@ pub struct CreatePostRawBuilder {
     pub nsfw: Option<bool>,
 
     /// The images of the post
-    pub images: Vec<(String, Vec<u8>)>,
+    pub images: Vec<UploadPostFile>,
 }
 
 impl CreatePostRawBuilder {
@@ -73,8 +75,8 @@ impl CreatePostRawBuilder {
     }
 
     /// Add a new image to this post.
-    pub fn image(&mut self, file_name: &str, file_data: Vec<u8>) -> &mut Self {
-        self.images.push((file_name.into(), file_data));
+    pub fn image(&mut self, file: UploadPostFile) -> &mut Self {
+        self.images.push(file);
         self
     }
 }
@@ -82,6 +84,59 @@ impl CreatePostRawBuilder {
 impl Default for CreatePostRawBuilder {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+/// A post file that is meant for uploading.
+#[derive(Debug)]
+pub struct UploadPostFile {
+    /// The file name
+    file_name: String,
+
+    /// The file body
+    body: reqwest::Body,
+}
+
+impl UploadPostFile {
+    /// Create this from a raw reqwest body.
+    pub fn from_body(file_name: &str, body: reqwest::Body) -> Self {
+        Self {
+            file_name: file_name.into(),
+            body,
+        }
+    }
+
+    /// Create this from bytes.
+    pub fn from_bytes(file_name: &str, file_data: Vec<u8>) -> Self {
+        Self::from_body(file_name, file_data.into())
+    }
+
+    /// Create this from a file.
+    pub fn from_file(file_name: &str, file: tokio::fs::File) -> Self {
+        let stream = FramedRead::new(file, BytesCodec::new());
+        let body = reqwest::Body::wrap_stream(stream);
+
+        Self::from_body(file_name, body)
+    }
+
+    /// Create this from a file at the given path.
+    pub async fn from_path<P>(path: P) -> std::io::Result<Self>
+    where
+        P: AsRef<Path>,
+    {
+        let path = path.as_ref();
+
+        let file_name = path
+            .file_name()
+            .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::Other, "missing file name"))?
+            .to_str()
+            .ok_or_else(|| {
+                std::io::Error::new(std::io::ErrorKind::Other, "file name is not valid unicode")
+            })?;
+
+        let file = tokio::fs::File::open(path).await?;
+
+        Ok(Self::from_file(file_name, file))
     }
 }
 
@@ -213,10 +268,7 @@ impl Client {
     ///
     /// # Authorization
     /// This function does REQUIRES a token.
-    pub async fn create_post_raw(
-        &self,
-        data: CreatePostRawBuilder,
-    ) -> Result<serde_json::Value, Error> {
+    pub async fn create_post_raw(&self, data: CreatePostRawBuilder) -> Result<Post, Error> {
         let token = self.get_token().ok_or(Error::MissingToken)?;
         let url = "https://api.imgchest.com/v1/post";
 
@@ -242,8 +294,8 @@ impl Client {
             return Err(Error::MissingImages);
         }
 
-        for (file_name, file_data) in data.images {
-            let part = reqwest::multipart::Part::bytes(file_data).file_name(file_name);
+        for file in data.images {
+            let part = reqwest::multipart::Part::stream(file.body).file_name(file.file_name);
 
             form = form.part("images[]", part);
         }

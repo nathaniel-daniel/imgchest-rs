@@ -3,6 +3,7 @@ mod model;
 
 pub use self::client::Client;
 pub use crate::client::CreatePostRawBuilder;
+pub use crate::client::UploadPostFile;
 use crate::model::ApiResponse;
 pub use crate::model::InvalidScrapedPostError;
 pub use crate::model::InvalidScrapedPostFileError;
@@ -12,6 +13,7 @@ pub use crate::model::PostPrivacy;
 pub use crate::model::ScrapedPost;
 pub use crate::model::ScrapedPostFile;
 pub use crate::model::User;
+pub use reqwest::Body;
 
 /// The error
 #[derive(Debug, thiserror::Error)]
