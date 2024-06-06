@@ -456,6 +456,35 @@ impl Client {
         }
     }
 
+    /// Add images to a post
+    pub async fn add_post_images<I>(&self, id: &str, images: I) -> Result<Post, Error>
+    where
+        I: IntoIterator<Item = UploadPostFile>,
+    {
+        let token = self.get_token().ok_or(Error::MissingToken)?;
+        let url = format!("https://api.imgchest.com/v1/post/{id}/add");
+
+        let mut form = Form::new();
+
+        for file in images {
+            let part = reqwest::multipart::Part::stream(file.body).file_name(file.file_name);
+
+            form = form.part("images[]", part);
+        }
+
+        let response = self
+            .client
+            .post(url)
+            .header(AUTHORIZATION, format!("Bearer {token}"))
+            .multipart(form)
+            .send()
+            .await?;
+
+        let post: ApiResponse<_> = response.error_for_status()?.json().await?;
+
+        Ok(post.data)
+    }
+
     /// Get a user by username.
     ///
     /// # Authorization
