@@ -190,6 +190,35 @@ impl Default for UpdatePostBuilder {
     }
 }
 
+/// A builder for updating a file.
+#[derive(Debug)]
+pub struct UpdateFileBuilder {
+    /// The file description.
+    ///
+    /// This supports markdown.
+    pub description: Option<String>,
+}
+
+impl UpdateFileBuilder {
+    /// Make a new empty builder.
+    pub fn new() -> Self {
+        Self { description: None }
+    }
+
+    /// Set the description.
+    ///
+    /// This supports markdown.
+    pub fn description(&mut self, description: impl Into<String>) -> &mut Self {
+        self.description = Some(description.into());
+        self
+    }
+}
+
+impl Default for UpdateFileBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 /// The client
 #[derive(Debug, Clone)]
 pub struct Client {
@@ -456,7 +485,10 @@ impl Client {
         }
     }
 
-    /// Add images to a post
+    /// Add images to a post.
+    ///
+    /// # Authorization
+    /// This function does REQUIRES a token.
     pub async fn add_post_images<I>(&self, id: &str, images: I) -> Result<Post, Error>
     where
         I: IntoIterator<Item = UploadPostFile>,
@@ -528,6 +560,42 @@ impl Client {
         let file: ApiResponse<_> = response.error_for_status()?.json().await?;
 
         Ok(file.data)
+    }
+
+    /// Update a file.
+    ///
+    /// # Authorization
+    /// This function does REQUIRES a token.
+    pub async fn update_file(&self, id: &str, data: UpdateFileBuilder) -> Result<(), Error> {
+        let token = self.get_token().ok_or(Error::MissingToken)?;
+        let url = format!("https://api.imgchest.com/v1/file/{id}");
+
+        let mut form = Vec::new();
+
+        // The api docs differ from the implementation here.
+        // While the description field is documented as optional,
+        // it is actually mandatory.
+        match data.description {
+            Some(description) => {
+                form.push(("description", description));
+            }
+            None => return Err(Error::MissingDescription),
+        }
+
+        let response = self
+            .client
+            .patch(url)
+            .form(&form)
+            .header(AUTHORIZATION, format!("Bearer {token}"))
+            .send()
+            .await?;
+
+        let response: ApiCompletedResponse = response.error_for_status()?.json().await?;
+        if !response.success {
+            return Err(Error::ApiOperationFailed);
+        }
+
+        Ok(())
     }
 }
 

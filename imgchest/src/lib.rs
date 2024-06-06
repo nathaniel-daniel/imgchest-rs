@@ -3,6 +3,7 @@ mod model;
 
 pub use self::client::Client;
 pub use crate::client::CreatePostBuilder;
+pub use crate::client::UpdateFileBuilder;
 pub use crate::client::UpdatePostBuilder;
 pub use crate::client::UploadPostFile;
 use crate::model::ApiCompletedResponse;
@@ -58,6 +59,10 @@ pub enum Error {
         /// The unknown message
         message: Box<str>,
     },
+
+    /// Missing description
+    #[error("missing description")]
+    MissingDescription,
 }
 
 #[cfg(test)]
