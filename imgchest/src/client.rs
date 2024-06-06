@@ -1,6 +1,8 @@
 use crate::ApiCompletedResponse;
 use crate::ApiResponse;
+use crate::ApiUpdateFilesBulkRequest;
 use crate::Error;
+use crate::FileUpdate;
 use crate::Post;
 use crate::PostFile;
 use crate::PostPrivacy;
@@ -607,6 +609,30 @@ impl Client {
         }
 
         Ok(())
+    }
+
+    /// Update files in bulk.
+    pub async fn update_files_bulk<I>(&self, files: I) -> Result<Vec<PostFile>, Error>
+    where
+        I: IntoIterator<Item = FileUpdate>,
+    {
+        let token = self.get_token().ok_or(Error::MissingToken)?;
+        let url = "https://api.imgchest.com/v1/files";
+
+        let data = files.into_iter().collect::<Vec<_>>();
+        let data = ApiUpdateFilesBulkRequest { data };
+
+        let response = self
+            .client
+            .patch(url)
+            .header(AUTHORIZATION, format!("Bearer {token}"))
+            .json(&data)
+            .send()
+            .await?;
+
+        let file: ApiResponse<_> = response.error_for_status()?.json().await?;
+
+        Ok(file.data)
     }
 }
 

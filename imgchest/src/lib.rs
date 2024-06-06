@@ -8,6 +8,8 @@ pub use crate::client::UpdatePostBuilder;
 pub use crate::client::UploadPostFile;
 use crate::model::ApiCompletedResponse;
 use crate::model::ApiResponse;
+use crate::model::ApiUpdateFilesBulkRequest;
+pub use crate::model::FileUpdate;
 pub use crate::model::InvalidScrapedPostError;
 pub use crate::model::InvalidScrapedPostFileError;
 pub use crate::model::Post;
