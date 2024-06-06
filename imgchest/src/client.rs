@@ -87,6 +87,18 @@ impl Default for CreatePostRawBuilder {
     }
 }
 
+impl From<CreatePostBuilder<'_>> for CreatePostRawBuilder {
+    fn from(builder: CreatePostBuilder<'_>) -> Self {
+        Self {
+            title: builder.title,
+            privacy: builder.privacy,
+            anonymous: builder.anonymous,
+            nsfw: builder.nsfw,
+            images: builder.images,
+        }
+    }
+}
+
 /// A post file that is meant for uploading.
 #[derive(Debug)]
 pub struct UploadPostFile {
@@ -137,6 +149,96 @@ impl UploadPostFile {
         let file = tokio::fs::File::open(path).await?;
 
         Ok(Self::from_file(file_name, file))
+    }
+}
+
+/// A builder for making a post
+#[derive(Debug)]
+pub struct CreatePostBuilder<'a> {
+    /// The client
+    client: &'a Client,
+
+    /// The title of the post.
+    pub title: Option<String>,
+
+    /// The post privacy.
+    ///
+    /// Defaults to hidden.
+    pub privacy: Option<PostPrivacy>,
+
+    /// Whether the post should be tied to the user.
+    pub anonymous: Option<bool>,
+
+    /// Whether this post is nsfw.
+    pub nsfw: Option<bool>,
+
+    /// The images of the post
+    pub images: Vec<UploadPostFile>,
+}
+
+impl<'a> CreatePostBuilder<'a> {
+    /// Create a new create post builder.
+    fn new(client: &'a Client) -> Self {
+        Self {
+            client,
+            title: None,
+            privacy: None,
+            anonymous: None,
+            nsfw: None,
+            images: Vec::new(),
+        }
+    }
+
+    /// Set the title.
+    pub fn title(&mut self, title: &str) -> &mut Self {
+        self.title = Some(title.into());
+        self
+    }
+
+    /// Set the post privacy.
+    ///
+    /// Defaults to hidden.
+    pub fn privacy(&mut self, privacy: PostPrivacy) -> &mut Self {
+        self.privacy = Some(privacy);
+        self
+    }
+
+    /// Set whether this post should be anonymous.
+    pub fn anonymous(&mut self, anonymous: bool) -> &mut Self {
+        self.anonymous = Some(anonymous);
+        self
+    }
+
+    /// Set whether this post is nsfw.
+    pub fn nsfw(&mut self, nsfw: bool) -> &mut Self {
+        self.nsfw = Some(nsfw);
+        self
+    }
+
+    /// Add a new image to this post.
+    pub fn image(&mut self, file: UploadPostFile) -> &mut Self {
+        self.images.push(file);
+        self
+    }
+
+    /// "Take" the data in this and leave it empty.
+    fn take(&mut self) -> Self {
+        Self {
+            client: self.client,
+            title: self.title.take(),
+            privacy: self.privacy.take(),
+            anonymous: self.anonymous.take(),
+            nsfw: self.nsfw.take(),
+            images: std::mem::take(&mut self.images),
+        }
+    }
+
+    /// Execute this create post request.
+    pub async fn execute(&mut self) -> Result<Post, Error> {
+        let client = self.client;
+        let data: CreatePostRawBuilder = self.take().into();
+
+        client.create_post_raw(data).await
     }
 }
 
@@ -265,6 +367,16 @@ impl Client {
     }
 
     /// Create a post.
+    ///
+    /// # Authorization
+    /// This function does REQUIRES a token.
+    pub fn create_post(&self) -> CreatePostBuilder {
+        CreatePostBuilder::new(self)
+    }
+
+    /// Create a post.
+    ///
+    /// This is a lower-level api.
     ///
     /// # Authorization
     /// This function does REQUIRES a token.
