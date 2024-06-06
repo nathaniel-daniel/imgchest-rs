@@ -402,6 +402,9 @@ impl Client {
     }
 
     /// Delete a post.
+    ///
+    /// # Authorization
+    /// This function does REQUIRES a token.
     pub async fn delete_post(&self, id: &str) -> Result<(), Error> {
         let token = self.get_token().ok_or(Error::MissingToken)?;
         let url = format!("https://api.imgchest.com/v1/post/{id}");
@@ -419,6 +422,38 @@ impl Client {
         }
 
         Ok(())
+    }
+
+    /// Favorite or unfavorite a post.
+    ///
+    /// # Returns
+    /// Returns true if the favorite was added.
+    /// Returns false if the favorite was removed.
+    ///
+    /// # Authorization
+    /// This function does REQUIRES a token.
+    pub async fn favorite_post(&self, id: &str) -> Result<bool, Error> {
+        let token = self.get_token().ok_or(Error::MissingToken)?;
+        let url = format!("https://api.imgchest.com/v1/post/{id}/favorite");
+
+        let response = self
+            .client
+            .post(url)
+            .header(AUTHORIZATION, format!("Bearer {token}"))
+            .send()
+            .await?;
+
+        let response: ApiCompletedResponse = response.error_for_status()?.json().await?;
+        if !response.success {
+            return Err(Error::ApiOperationFailed);
+        }
+
+        let message = response.message.ok_or(Error::ApiResponseMissingMessage)?;
+        match &*message {
+            "Favorite added." => Ok(true),
+            "Favorite removed." => Ok(false),
+            _ => Err(Error::ApiResponseUnknownMessage { message }),
+        }
     }
 
     /// Get a user by username.

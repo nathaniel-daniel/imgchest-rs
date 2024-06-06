@@ -47,6 +47,17 @@ pub enum Error {
     /// An api operation was not successful
     #[error("api operation was not successful")]
     ApiOperationFailed,
+
+    /// An api response is missing a message
+    #[error("api response missing messsage")]
+    ApiResponseMissingMessage,
+
+    /// An api response had un unknown message
+    #[error("api response had unknown message \"{message}\"")]
+    ApiResponseUnknownMessage {
+        /// The unknown message
+        message: Box<str>,
+    },
 }
 
 #[cfg(test)]
