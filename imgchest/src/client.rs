@@ -1,3 +1,4 @@
+use crate::ApiCompletedResponse;
 use crate::ApiResponse;
 use crate::Error;
 use crate::Post;
@@ -11,7 +12,8 @@ use reqwest::multipart::Form;
 use scraper::Html;
 use std::path::Path;
 use std::sync::Arc;
-use tokio_util::codec::{BytesCodec, FramedRead};
+use tokio_util::codec::BytesCodec;
+use tokio_util::codec::FramedRead;
 
 /// A builder for creating a post.
 ///
@@ -397,6 +399,26 @@ impl Client {
         let post: ApiResponse<_> = response.error_for_status()?.json().await?;
 
         Ok(post.data)
+    }
+
+    /// Delete a post.
+    pub async fn delete_post(&self, id: &str) -> Result<(), Error> {
+        let token = self.get_token().ok_or(Error::MissingToken)?;
+        let url = format!("https://api.imgchest.com/v1/post/{id}");
+
+        let response = self
+            .client
+            .delete(url)
+            .header(AUTHORIZATION, format!("Bearer {token}"))
+            .send()
+            .await?;
+
+        let response: ApiCompletedResponse = response.error_for_status()?.json().await?;
+        if !response.success {
+            return Err(Error::ApiOperationFailed);
+        }
+
+        Ok(())
     }
 
     /// Get a user by username.
