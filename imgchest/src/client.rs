@@ -17,7 +17,7 @@ use tokio_util::codec::{BytesCodec, FramedRead};
 ///
 /// This builder is for the low-level function.
 #[derive(Debug)]
-pub struct CreatePostRawBuilder {
+pub struct CreatePostBuilder {
     /// The title of the post.
     pub title: Option<String>,
 
@@ -36,7 +36,7 @@ pub struct CreatePostRawBuilder {
     pub images: Vec<UploadPostFile>,
 }
 
-impl CreatePostRawBuilder {
+impl CreatePostBuilder {
     /// Create a new builder.
     pub fn new() -> Self {
         Self {
@@ -49,7 +49,7 @@ impl CreatePostRawBuilder {
     }
 
     /// Set the title.
-    pub fn title(&mut self, title: &str) -> &mut Self {
+    pub fn title(&mut self, title: impl Into<String>) -> &mut Self {
         self.title = Some(title.into());
         self
     }
@@ -81,21 +81,9 @@ impl CreatePostRawBuilder {
     }
 }
 
-impl Default for CreatePostRawBuilder {
+impl Default for CreatePostBuilder {
     fn default() -> Self {
         Self::new()
-    }
-}
-
-impl From<CreatePostBuilder<'_>> for CreatePostRawBuilder {
-    fn from(builder: CreatePostBuilder<'_>) -> Self {
-        Self {
-            title: builder.title,
-            privacy: builder.privacy,
-            anonymous: builder.anonymous,
-            nsfw: builder.nsfw,
-            images: builder.images,
-        }
     }
 }
 
@@ -152,93 +140,51 @@ impl UploadPostFile {
     }
 }
 
-/// A builder for making a post
+/// A builder for updating a post.
 #[derive(Debug)]
-pub struct CreatePostBuilder<'a> {
-    /// The client
-    client: &'a Client,
-
-    /// The title of the post.
+pub struct UpdatePostBuilder {
+    /// The title
     pub title: Option<String>,
 
-    /// The post privacy.
-    ///
-    /// Defaults to hidden.
+    /// The post privacy
     pub privacy: Option<PostPrivacy>,
 
-    /// Whether the post should be tied to the user.
-    pub anonymous: Option<bool>,
-
-    /// Whether this post is nsfw.
+    /// Whether the post is nsfw
     pub nsfw: Option<bool>,
-
-    /// The images of the post
-    pub images: Vec<UploadPostFile>,
 }
 
-impl<'a> CreatePostBuilder<'a> {
-    /// Create a new create post builder.
-    fn new(client: &'a Client) -> Self {
+impl UpdatePostBuilder {
+    /// Create an empty post update.
+    pub fn new() -> Self {
         Self {
-            client,
             title: None,
             privacy: None,
-            anonymous: None,
             nsfw: None,
-            images: Vec::new(),
         }
     }
 
-    /// Set the title.
-    pub fn title(&mut self, title: &str) -> &mut Self {
+    /// Update the title.
+    pub fn title(&mut self, title: impl Into<String>) -> &mut Self {
         self.title = Some(title.into());
         self
     }
 
-    /// Set the post privacy.
-    ///
-    /// Defaults to hidden.
+    /// Update the privacy.
     pub fn privacy(&mut self, privacy: PostPrivacy) -> &mut Self {
         self.privacy = Some(privacy);
         self
     }
 
-    /// Set whether this post should be anonymous.
-    pub fn anonymous(&mut self, anonymous: bool) -> &mut Self {
-        self.anonymous = Some(anonymous);
-        self
-    }
-
-    /// Set whether this post is nsfw.
+    /// Update the nsfw flag.
     pub fn nsfw(&mut self, nsfw: bool) -> &mut Self {
         self.nsfw = Some(nsfw);
         self
     }
+}
 
-    /// Add a new image to this post.
-    pub fn image(&mut self, file: UploadPostFile) -> &mut Self {
-        self.images.push(file);
-        self
-    }
-
-    /// "Take" the data in this and leave it empty.
-    fn take(&mut self) -> Self {
-        Self {
-            client: self.client,
-            title: self.title.take(),
-            privacy: self.privacy.take(),
-            anonymous: self.anonymous.take(),
-            nsfw: self.nsfw.take(),
-            images: std::mem::take(&mut self.images),
-        }
-    }
-
-    /// Execute this create post request.
-    pub async fn execute(&mut self) -> Result<Post, Error> {
-        let client = self.client;
-        let data: CreatePostRawBuilder = self.take().into();
-
-        client.create_post_raw(data).await
+impl Default for UpdatePostBuilder {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -370,17 +316,7 @@ impl Client {
     ///
     /// # Authorization
     /// This function does REQUIRES a token.
-    pub fn create_post(&self) -> CreatePostBuilder {
-        CreatePostBuilder::new(self)
-    }
-
-    /// Create a post.
-    ///
-    /// This is a lower-level api.
-    ///
-    /// # Authorization
-    /// This function does REQUIRES a token.
-    pub async fn create_post_raw(&self, data: CreatePostRawBuilder) -> Result<Post, Error> {
+    pub async fn create_post(&self, data: CreatePostBuilder) -> Result<Post, Error> {
         let token = self.get_token().ok_or(Error::MissingToken)?;
         let url = "https://api.imgchest.com/v1/post";
 
@@ -417,6 +353,44 @@ impl Client {
             .post(url)
             .header(AUTHORIZATION, format!("Bearer {token}"))
             .multipart(form)
+            .send()
+            .await?;
+
+        let post: ApiResponse<_> = response.error_for_status()?.json().await?;
+
+        Ok(post.data)
+    }
+
+    /// Update a post.
+    ///
+    /// # Authorization
+    /// This function does REQUIRES a token.
+    pub async fn update_post(&self, id: &str, data: UpdatePostBuilder) -> Result<Post, Error> {
+        let token = self.get_token().ok_or(Error::MissingToken)?;
+        let url = format!("https://api.imgchest.com/v1/post/{id}");
+
+        let mut form = Vec::new();
+
+        if let Some(title) = data.title.as_ref() {
+            form.push(("title", title.as_str()));
+        }
+
+        if let Some(privacy) = data.privacy {
+            form.push(("privacy", privacy.as_str()));
+        }
+
+        if let Some(nsfw) = data.nsfw {
+            form.push(("nsfw", bool_to_str(nsfw)));
+        }
+
+        // Not using a multipart form here is intended.
+        // Even though we use a multipart form for creating a post,
+        // the server will silently ignore requests that aren't form-urlencoded.
+        let response = self
+            .client
+            .patch(url)
+            .header(AUTHORIZATION, format!("Bearer {token}"))
+            .form(&form)
             .send()
             .await?;
 

@@ -2,7 +2,8 @@ mod client;
 mod model;
 
 pub use self::client::Client;
-pub use crate::client::CreatePostRawBuilder;
+pub use crate::client::CreatePostBuilder;
+pub use crate::client::UpdatePostBuilder;
 pub use crate::client::UploadPostFile;
 use crate::model::ApiResponse;
 pub use crate::model::InvalidScrapedPostError;
