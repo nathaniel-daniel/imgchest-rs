@@ -566,26 +566,37 @@ impl Client {
     ///
     /// # Authorization
     /// This function does REQUIRES a token.
-    pub async fn update_file(&self, id: &str, data: UpdateFileBuilder) -> Result<(), Error> {
+    pub async fn update_file(&self, id: &str, description: &str) -> Result<(), Error> {
         let token = self.get_token().ok_or(Error::MissingToken)?;
         let url = format!("https://api.imgchest.com/v1/file/{id}");
-
-        let mut form = Vec::new();
-
-        // The api docs differ from the implementation here.
-        // While the description field is documented as optional,
-        // it is actually mandatory.
-        match data.description {
-            Some(description) => {
-                form.push(("description", description));
-            }
-            None => return Err(Error::MissingDescription),
-        }
 
         let response = self
             .client
             .patch(url)
-            .form(&form)
+            .form(&[("description", description)])
+            .header(AUTHORIZATION, format!("Bearer {token}"))
+            .send()
+            .await?;
+
+        let response: ApiCompletedResponse = response.error_for_status()?.json().await?;
+        if !response.success {
+            return Err(Error::ApiOperationFailed);
+        }
+
+        Ok(())
+    }
+
+    /// Delete a file.
+    ///
+    /// # Authorization
+    /// This function does REQUIRES a token.
+    pub async fn delete_file(&self, id: &str) -> Result<(), Error> {
+        let token = self.get_token().ok_or(Error::MissingToken)?;
+        let url = format!("https://api.imgchest.com/v1/file/{id}");
+
+        let response = self
+            .client
+            .delete(url)
             .header(AUTHORIZATION, format!("Bearer {token}"))
             .send()
             .await?;
