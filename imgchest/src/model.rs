@@ -24,7 +24,10 @@ pub struct FileUpdate {
     /// The file id
     pub id: String,
 
-    /// The file description
+    /// The file description.
+    ///
+    /// Though the API docs seem to say that this field is nullable,
+    /// it is not.
     pub description: String,
 }
 
