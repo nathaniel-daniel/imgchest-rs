@@ -67,7 +67,7 @@ pub enum Error {
     MissingDescription,
 
     /// The title is too short.
-    #[error("title too short, mut be at least 3 characters")]
+    #[error("title too short, must be at least 3 characters")]
     TitleTooShort,
 }
 
@@ -320,7 +320,7 @@ mod test {
             .create_post(builder)
             .await
             .expect_err("title should have been too short");
-            
+
         assert!(matches!(err, Error::TitleTooShort));
     }
 }
