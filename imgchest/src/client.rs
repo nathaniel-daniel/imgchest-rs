@@ -387,7 +387,7 @@ impl Client {
     /// Update a post.
     ///
     /// # Authorization
-    /// This function does REQUIRES a token.
+    /// This function REQUIRES a token.
     pub async fn update_post(&self, id: &str, data: UpdatePostBuilder) -> Result<Post, Error> {
         let token = self.get_token().ok_or(Error::MissingToken)?;
         let url = format!("https://api.imgchest.com/v1/post/{id}");
@@ -431,7 +431,7 @@ impl Client {
     /// Delete a post.
     ///
     /// # Authorization
-    /// This function does REQUIRES a token.
+    /// This function REQUIRES a token.
     pub async fn delete_post(&self, id: &str) -> Result<(), Error> {
         let token = self.get_token().ok_or(Error::MissingToken)?;
         let url = format!("https://api.imgchest.com/v1/post/{id}");
@@ -460,7 +460,7 @@ impl Client {
     /// Returns false if the favorite was removed.
     ///
     /// # Authorization
-    /// This function does REQUIRES a token.
+    /// This function REQUIRES a token.
     pub async fn favorite_post(&self, id: &str) -> Result<bool, Error> {
         let token = self.get_token().ok_or(Error::MissingToken)?;
         let url = format!("https://api.imgchest.com/v1/post/{id}/favorite");
@@ -490,7 +490,7 @@ impl Client {
     /// Add images to a post.
     ///
     /// # Authorization
-    /// This function does REQUIRES a token.
+    /// This function REQUIRES a token.
     pub async fn add_post_images<I>(&self, id: &str, images: I) -> Result<Post, Error>
     where
         I: IntoIterator<Item = UploadPostFile>,
@@ -530,7 +530,7 @@ impl Client {
     /// Get a user by username.
     ///
     /// # Authorization
-    /// This function does REQUIRES a token.
+    /// This function REQUIRES a token.
     pub async fn get_user(&self, username: &str) -> Result<User, Error> {
         let token = self.get_token().ok_or(Error::MissingToken)?;
         let url = format!("https://api.imgchest.com/v1/user/{username}");
@@ -557,7 +557,7 @@ impl Client {
     /// As a result, this function is currently useless.
     ///
     /// # Authorization
-    /// This function does REQUIRES a token.
+    /// This function REQUIRES a token.
     pub async fn get_file(&self, id: &str) -> Result<PostFile, Error> {
         let token = self.get_token().ok_or(Error::MissingToken)?;
         let url = format!("https://api.imgchest.com/v1/file/{id}");
@@ -579,7 +579,7 @@ impl Client {
     /// Update a file.
     ///
     /// # Authorization
-    /// This function does REQUIRES a token.
+    /// This function REQUIRES a token.
     pub async fn update_file(&self, id: &str, description: &str) -> Result<(), Error> {
         let token = self.get_token().ok_or(Error::MissingToken)?;
         let url = format!("https://api.imgchest.com/v1/file/{id}");
@@ -609,7 +609,7 @@ impl Client {
     /// Delete a file.
     ///
     /// # Authorization
-    /// This function does REQUIRES a token.
+    /// This function REQUIRES a token.
     pub async fn delete_file(&self, id: &str) -> Result<(), Error> {
         let token = self.get_token().ok_or(Error::MissingToken)?;
         let url = format!("https://api.imgchest.com/v1/file/{id}");
