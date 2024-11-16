@@ -37,10 +37,11 @@ pub struct ScrapedPost {
     /// The number of views
     pub views: u64,
 
-    // /// ?
-    // pub nsfw: u32,
+    /// Whether this is nsfw
+    pub nsfw: bool,
+
     /// The number of images
-    pub image_count: u32,
+    pub image_count: u64,
 
     // /// The timestamp of post creation
     // pub created: String,
@@ -51,7 +52,8 @@ pub struct ScrapedPost {
 impl ScrapedPost {
     /// Parse this from html
     pub(crate) fn from_html(html: &Html) -> Result<Self, FromHtmlError> {
-        // Implement: JSON.parse(document.getElementById('app').getAttribute('data-page'))
+        // Implement:
+        // JSON.parse(document.getElementById('app').getAttribute('data-page'))
         let app_element = html
             .select(&APP_SELECTOR)
             .next()
@@ -62,8 +64,8 @@ impl ScrapedPost {
         let page_data: PageData =
             serde_json::from_str(data_page_attr).map_err(FromHtmlError::InvalidDataPage)?;
 
-        // This would mean the server sent back over a 4GB response.
-        let image_count = u32::try_from(page_data.props.post.files.len()).unwrap();
+        // Overflowing a u64 with image entries is impossible.
+        let image_count = u64::try_from(page_data.props.post.files.len()).unwrap();
         let images: Vec<_> = page_data
             .props
             .post
@@ -73,6 +75,7 @@ impl ScrapedPost {
                 id: file.id,
                 description: file.description,
                 link: file.link,
+                position: file.position,
             })
             .collect();
         Ok(Self {
@@ -80,6 +83,7 @@ impl ScrapedPost {
             title: page_data.props.post.title,
             username: page_data.props.post.user.username,
             views: page_data.props.post.views,
+            nsfw: page_data.props.post.nsfw != 0,
             image_count,
             images: images.into(),
         })
@@ -99,6 +103,7 @@ struct PageDataProps {
 #[derive(Debug, serde::Deserialize)]
 struct PageDataPost {
     files: Vec<PageDataFile>,
+    nsfw: u8,
     slug: Box<str>,
     title: Box<str>,
     user: PageDataUser,
@@ -115,6 +120,7 @@ struct PageDataFile {
     id: Box<str>,
     description: Option<Box<str>>,
     link: Box<str>,
+    position: u32,
 }
 
 /// A post file
@@ -128,9 +134,11 @@ pub struct File {
 
     /// The file link
     pub link: Box<str>,
-    // /// The file position
-    // pub position: u32,
 
+    /// The position of the image in the post.
+    ///
+    /// Starts at 1.
+    pub position: u32,
     // /// The file creation time
     // pub created: u32,
 }

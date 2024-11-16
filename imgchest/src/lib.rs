@@ -116,7 +116,7 @@ mod test {
         // assert!(post.privacy == "public");
         // assert!(post.report_status == 1);
         assert!(post.views >= 198);
-        // assert!(post.nsfw == 0);
+        assert!(!post.nsfw);
         assert!(post.image_count == 4);
         // assert!(post.created == "2019-11-03T00:36:00.000000Z");
 
