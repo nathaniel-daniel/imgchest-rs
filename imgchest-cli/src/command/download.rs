@@ -48,7 +48,7 @@ pub async fn exec(client: imgchest::Client, options: Options) -> anyhow::Result<
         spawn_image_download(&client, &mut join_set, image, &out_dir);
     }
 
-    let mut last_error = None;
+    let mut last_error = Ok(());
     let mut downloaded = 0;
     while let Some(result) = join_set.join_next().await {
         match result
@@ -57,19 +57,16 @@ pub async fn exec(client: imgchest::Client, options: Options) -> anyhow::Result<
         {
             Ok(_new_download) => {
                 downloaded += 1;
-                println!("{downloaded} / {total_downloads}...");
+                println!("{downloaded}/{total_downloads}...");
             }
-            Err(e) => {
-                last_error = Some(e);
+            Err(error) => {
+                eprintln!("{error:?}");
+                last_error = Err(error);
             }
         }
     }
 
-    if let Some(e) = last_error {
-        return Err(e);
-    }
-
-    Ok(())
+    last_error
 }
 
 fn extract_id(value: &str) -> anyhow::Result<String> {
