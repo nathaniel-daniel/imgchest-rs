@@ -98,11 +98,11 @@ fn extract_id(value: &str) -> anyhow::Result<String> {
 
 /// Ids are composed of 11 lowercase alphanumeric chars.
 fn is_valid_id(value: &str) -> bool {
-    value.len() == 11 && value.chars().all(|ch| is_ascii_alphanumeric_lowercase(ch))
+    value.len() == 11 && value.chars().all(is_ascii_alphanumeric_lowercase)
 }
 
 fn is_ascii_alphanumeric_lowercase(ch: char) -> bool {
-    matches!(ch, '0'..='9') | matches!(ch, 'a'..='z')
+    ch.is_ascii_digit() | ch.is_ascii_lowercase()
 }
 
 fn spawn_image_download(
