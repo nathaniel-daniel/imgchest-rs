@@ -86,11 +86,7 @@ fn extract_id(value: &str) -> anyhow::Result<String> {
         }
         Err(_error) => {
             // This isn't a url, but it might be a raw id.
-            // Ids are composed of 11 lowercase alphanumeric chars.
-            let is_valid_id = value.len() == 11
-                && value
-                    .chars()
-                    .all(|ch| ch.is_ascii_lowercase() && ch.is_ascii_alphanumeric());
+            let is_valid_id = is_valid_id(value);
             ensure!(
                 is_valid_id,
                 "ids must be composed of 11 ascii alphanumeric characters"
@@ -98,6 +94,15 @@ fn extract_id(value: &str) -> anyhow::Result<String> {
             Ok(value.to_string())
         }
     }
+}
+
+/// Ids are composed of 11 lowercase alphanumeric chars.
+fn is_valid_id(value: &str) -> bool {
+    value.len() == 11 && value.chars().all(|ch| is_ascii_alphanumeric_lowercase(ch))
+}
+
+fn is_ascii_alphanumeric_lowercase(ch: char) -> bool {
+    matches!(ch, '0'..='9') | matches!(ch, 'a'..='z')
 }
 
 fn spawn_image_download(
