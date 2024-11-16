@@ -72,9 +72,9 @@ mod test {
     use time::format_description::well_known::Iso8601;
     use time::OffsetDateTime;
 
-    const POST_URL: &str = "https://imgchest.com/p/3qe4gdvj4j2";
-    const GIF_POST_URL: &str = "https://imgchest.com/p/pwl7lgepyx2";
-    const VIDEO_POST_URL: &str = "https://imgchest.com/p/ej7mko58jyd";
+    const POST_ID: &str = "3qe4gdvj4j2";
+    const GIF_POST_ID: &str = "pwl7lgepyx2";
+    const VIDEO_POST_ID: &str = "ej7mko58jyd";
 
     fn get_token() -> &'static str {
         static TOKEN: OnceLock<String> = OnceLock::new();
@@ -107,7 +107,7 @@ mod test {
     async fn get_scraped_post() {
         let client = Client::new();
         let post = client
-            .get_scraped_post(POST_URL)
+            .get_scraped_post(POST_ID)
             .await
             .expect("failed to get scraped post");
         assert!(&*post.id == "3qe4gdvj4j2");
@@ -147,7 +147,7 @@ mod test {
     async fn get_scraped_gif_post() {
         let client = Client::new();
         let post = client
-            .get_scraped_post(GIF_POST_URL)
+            .get_scraped_post(GIF_POST_ID)
             .await
             .expect("failed to get post");
 
@@ -168,7 +168,7 @@ mod test {
     async fn get_scraped_video_post() {
         let client = Client::new();
         let post = client
-            .get_scraped_post(VIDEO_POST_URL)
+            .get_scraped_post(VIDEO_POST_ID)
             .await
             .expect("failed to get post");
 

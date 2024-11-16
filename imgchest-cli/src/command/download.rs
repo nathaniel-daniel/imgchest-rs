@@ -1,7 +1,9 @@
+use anyhow::ensure;
 use anyhow::Context;
 use std::path::Path;
 use std::path::PathBuf;
 use tokio::task::JoinSet;
+use url::Url;
 
 #[derive(Debug, argh::FromArgs)]
 #[argh(
@@ -24,8 +26,10 @@ pub struct Options {
 }
 
 pub async fn exec(client: imgchest::Client, options: Options) -> anyhow::Result<()> {
+    let id = extract_id(options.url.as_str()).context("failed to determine post id")?;
+
     let post = client
-        .get_scraped_post(options.url.as_str())
+        .get_scraped_post(&id)
         .await
         .context("failed to get post")?;
 
@@ -66,6 +70,34 @@ pub async fn exec(client: imgchest::Client, options: Options) -> anyhow::Result<
     }
 
     Ok(())
+}
+
+fn extract_id(value: &str) -> anyhow::Result<String> {
+    match Url::parse(value) {
+        Ok(url) => {
+            // Ensure the url is in the format:
+            // https://imgchest.com/p/{id}
+            ensure!(url.host_str() == Some("imgchest.com"));
+            let mut path_iter = url.path_segments().context("url is missing path")?;
+            ensure!(path_iter.next() == Some("p"));
+            let id = path_iter.next().context("url missing id path segment")?;
+
+            Ok(id.to_string())
+        }
+        Err(_error) => {
+            // This isn't a url, but it might be a raw id.
+            // Ids are composed of 11 lowercase alphanumeric chars.
+            let is_valid_id = value.len() == 11
+                && value
+                    .chars()
+                    .all(|ch| ch.is_ascii_lowercase() && ch.is_ascii_alphanumeric());
+            ensure!(
+                is_valid_id,
+                "ids must be composed of 11 ascii alphanumeric characters"
+            );
+            Ok(value.to_string())
+        }
+    }
 }
 
 fn spawn_image_download(

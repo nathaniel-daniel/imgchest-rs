@@ -47,7 +47,7 @@ async fn main() -> anyhow::Result<()> {
     let client = imgchest::Client::new();
     
     let post = client
-        .get_scraped_post("https://imgchest.com/p/3qe4gdvj4j2")
+        .get_scraped_post("3qe4gdvj4j2")
         .await?;
     
     dbg!(&post);
