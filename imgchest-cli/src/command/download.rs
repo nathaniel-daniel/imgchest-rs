@@ -1,4 +1,3 @@
-use anyhow::ensure;
 use anyhow::Context;
 use std::path::Path;
 use std::path::PathBuf;
@@ -40,28 +39,9 @@ pub async fn exec(client: imgchest::Client, options: Options) -> anyhow::Result<
     tokio::fs::write(out_dir.join("post.json"), &post_json).await?;
 
     let mut join_set = JoinSet::new();
-    let mut total_downloads = post.image_count;
+    let total_downloads = post.image_count;
     for image in post.images.iter() {
-        if image.video_link.is_some() {
-            total_downloads += 1;
-        }
         spawn_image_download(&client, &mut join_set, image, &out_dir);
-    }
-
-    if let Some(extra_image_count) = post.extra_image_count {
-        let extra_files = client
-            .load_extra_files_for_scraped_post(&post)
-            .await
-            .context("failed to load extra for post")?;
-
-        ensure!(extra_files.len() == usize::try_from(extra_image_count)?);
-
-        for image in extra_files.iter() {
-            if image.video_link.is_some() {
-                total_downloads += 1;
-            }
-            spawn_image_download(&client, &mut join_set, image, &out_dir);
-        }
     }
 
     let mut last_error = None;
@@ -94,49 +74,25 @@ fn spawn_image_download(
     file: &imgchest::ScrapedPostFile,
     out_dir: &Path,
 ) {
-    {
-        let client = client.clone();
-        let link = file.link.clone();
-        let out_path_result = file
-            .link
-            .split('/')
-            .next_back()
-            .context("missing file name")
-            .map(|file_name| out_dir.join(file_name));
-        join_set.spawn(async move {
-            let out_path = out_path_result?;
-            if tokio::fs::try_exists(&out_path)
-                .await
-                .context("failed to check if file exists")?
-            {
-                return Ok(false);
-            }
+    let client = client.clone();
+    let link = file.link.clone();
+    let out_path_result = file
+        .link
+        .split('/')
+        .next_back()
+        .context("missing file name")
+        .map(|file_name| out_dir.join(file_name));
+    join_set.spawn(async move {
+        let out_path = out_path_result?;
+        if tokio::fs::try_exists(&out_path)
+            .await
+            .context("failed to check if file exists")?
+        {
+            return Ok(false);
+        }
 
-            nd_util::download_to_path(&client.client, &link, &out_path).await?;
+        nd_util::download_to_path(&client.client, &link, &out_path).await?;
 
-            Ok(true)
-        });
-    }
-
-    if let Some(video_link) = file.video_link.clone() {
-        let client = client.clone();
-        let out_path_result = video_link
-            .split('/')
-            .next_back()
-            .context("missing file name")
-            .map(|file_name| out_dir.join(file_name));
-        join_set.spawn(async move {
-            let out_path = out_path_result?;
-            if tokio::fs::try_exists(&out_path)
-                .await
-                .context("failed to check if file exists")?
-            {
-                return Ok(false);
-            }
-
-            nd_util::download_to_path(&client.client, &video_link, &out_path).await?;
-
-            Ok(true)
-        });
-    }
+        Ok(true)
+    });
 }

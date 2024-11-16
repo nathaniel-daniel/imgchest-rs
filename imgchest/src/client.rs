@@ -7,7 +7,6 @@ use crate::Post;
 use crate::PostFile;
 use crate::PostPrivacy;
 use crate::ScrapedPost;
-use crate::ScrapedPostFile;
 use crate::User;
 use reqwest::header::AUTHORIZATION;
 use reqwest::multipart::Form;
@@ -248,40 +247,6 @@ impl Client {
         .await??;
 
         Ok(post)
-    }
-
-    /// Load extra files for a scraped post.
-    ///
-    /// # Authorization
-    /// This function does NOT require the use of a token.
-    pub async fn load_extra_files_for_scraped_post(
-        &self,
-        post: &ScrapedPost,
-    ) -> Result<Vec<ScrapedPostFile>, Error> {
-        let id = &post.id;
-        let url = format!("https://imgchest.com/p/{id}/loadAll");
-        let text = self
-            .client
-            .post(url.as_str())
-            .header("x-requested-with", "XMLHttpRequest")
-            .form(&[("_token", &*post.token)])
-            .send()
-            .await?
-            .error_for_status()?
-            .text()
-            .await?;
-
-        let images = tokio::task::spawn_blocking(move || {
-            let html = Html::parse_fragment(&text);
-            html.root_element()
-                .children()
-                .filter_map(scraper::ElementRef::wrap)
-                .map(ScrapedPostFile::from_element)
-                .collect::<Result<Vec<_>, _>>()
-        })
-        .await??;
-
-        Ok(images)
     }
 
     /// Set the token to use for future requests.
