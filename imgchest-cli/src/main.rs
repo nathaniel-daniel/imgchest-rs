@@ -1,5 +1,6 @@
 mod command;
 mod user_config;
+mod util;
 
 pub use self::user_config::UserConfig;
 

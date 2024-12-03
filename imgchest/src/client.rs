@@ -110,11 +110,12 @@ pub struct Client {
 impl Client {
     /// Make a new client
     pub fn new() -> Self {
+        let state = Arc::new(ClientState::new());
+
         let client = reqwest::Client::builder()
-            .cookie_store(true)
+            .cookie_provider(state.cookie_store.clone())
             .build()
             .expect("failed to build client");
-        let state = Arc::new(ClientState::new());
 
         Self { client, state }
     }
