@@ -1,5 +1,6 @@
 mod post;
 mod scraped_post;
+mod scraped_user;
 mod user;
 
 pub use self::post::File as PostFile;
@@ -8,6 +9,8 @@ pub use self::post::Privacy as PostPrivacy;
 pub use self::scraped_post::File as ScrapedPostFile;
 pub use self::scraped_post::FromHtmlError as InvalidScrapedPostError;
 pub use self::scraped_post::ScrapedPost;
+pub use self::scraped_user::FromHtmlError as InvalidScrapedUserError;
+pub use self::scraped_user::ScrapedUser;
 pub use self::user::User;
 
 /// A request for updating files in bulk.

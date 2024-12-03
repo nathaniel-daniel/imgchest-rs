@@ -2,20 +2,22 @@ mod client;
 mod model;
 
 pub use self::client::Client;
-pub use crate::client::CreatePostBuilder;
-pub use crate::client::UpdatePostBuilder;
-pub use crate::client::UploadPostFile;
-use crate::model::ApiCompletedResponse;
-use crate::model::ApiResponse;
-use crate::model::ApiUpdateFilesBulkRequest;
-pub use crate::model::FileUpdate;
-pub use crate::model::InvalidScrapedPostError;
-pub use crate::model::Post;
-pub use crate::model::PostFile;
-pub use crate::model::PostPrivacy;
-pub use crate::model::ScrapedPost;
-pub use crate::model::ScrapedPostFile;
-pub use crate::model::User;
+pub use self::client::CreatePostBuilder;
+pub use self::client::UpdatePostBuilder;
+pub use self::client::UploadPostFile;
+use self::model::ApiCompletedResponse;
+use self::model::ApiResponse;
+use self::model::ApiUpdateFilesBulkRequest;
+pub use self::model::FileUpdate;
+pub use self::model::InvalidScrapedPostError;
+pub use self::model::InvalidScrapedUserError;
+pub use self::model::Post;
+pub use self::model::PostFile;
+pub use self::model::PostPrivacy;
+pub use self::model::ScrapedPost;
+pub use self::model::ScrapedPostFile;
+pub use self::model::ScrapedUser;
+pub use self::model::User;
 pub use reqwest::Body;
 
 /// The error
@@ -32,6 +34,10 @@ pub enum Error {
     /// Failed to parse post
     #[error("invalid scraped post")]
     InvalidScrapedPost(#[from] InvalidScrapedPostError),
+
+    /// Failed to parse user
+    #[error("invalid scraped user")]
+    InvalidScrapedUser(#[from] InvalidScrapedUserError),
 
     /// Missing a token
     #[error("missing token")]
@@ -75,6 +81,8 @@ mod test {
     const POST_ID: &str = "3qe4gdvj4j2";
     const GIF_POST_ID: &str = "pwl7lgepyx2";
     const VIDEO_POST_ID: &str = "ej7mko58jyd";
+
+    const USER_NAME: &str = "LunarLandr";
 
     fn get_token() -> &'static str {
         static TOKEN: OnceLock<String> = OnceLock::new();
@@ -183,6 +191,23 @@ mod test {
         assert!(&*post.images[0].link == "https://cdn.imgchest.com/files/e4gdcbqe294.mp4");
 
         dbg!(&post);
+    }
+
+    #[tokio::test]
+    async fn get_scraped_user() {
+        let client = Client::new();
+        let user = client
+            .get_scraped_user(USER_NAME)
+            .await
+            .expect("failed to get scraped user");
+        assert!(&*user.name == USER_NAME);
+        assert!(user.posts >= 268);
+        assert!(user.comments >= 1);
+        assert!(user.created == time::macros::datetime!(2019-09-25 0:00 UTC));
+
+        assert!(user.post_views >= 1867537);
+        assert!(user.experience >= 12871);
+        assert!(user.favorites == 0);
     }
 
     #[tokio::test]

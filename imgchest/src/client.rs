@@ -7,6 +7,7 @@ use crate::Post;
 use crate::PostFile;
 use crate::PostPrivacy;
 use crate::ScrapedPost;
+use crate::ScrapedUser;
 use crate::User;
 use reqwest::header::AUTHORIZATION;
 use reqwest::multipart::Form;
@@ -249,6 +250,30 @@ impl Client {
         .await??;
 
         Ok(post)
+    }
+
+    /// Scrape a user from a username.
+    ///
+    /// # Authorization
+    /// This function does NOT require the use of a token.
+    pub async fn get_scraped_user(&self, name: &str) -> Result<ScrapedUser, Error> {
+        let url = format!("https://imgchest.com/u/{name}");
+        let text = self
+            .client
+            .get(url)
+            .send()
+            .await?
+            .error_for_status()?
+            .text()
+            .await?;
+
+        let user = tokio::task::spawn_blocking(move || {
+            let html = Html::parse_document(text.as_str());
+            ScrapedUser::from_html(&html)
+        })
+        .await??;
+
+        Ok(user)
     }
 
     /// Set the token to use for future requests.
