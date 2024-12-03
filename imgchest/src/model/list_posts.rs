@@ -20,11 +20,11 @@ pub struct ListPostsPost {
     pub nsfw: bool,
 
     /// The score of the post
-    #[serde(with = "crate::serde::from_str_to_str")]
+    #[serde(with = "int_or_str")]
     pub score: i64,
 
     /// The number of comments on the post
-    #[serde(with = "u64_or_str")]
+    #[serde(with = "int_or_str")]
     pub comments: u64,
 
     /// The number of views
@@ -55,16 +55,25 @@ pub struct Thumbnail {
     pub extra: HashMap<Box<str>, serde_json::Value>,
 }
 
-mod u64_or_str {
+mod int_or_str {
     use serde::de::Visitor;
+    use std::marker::PhantomData;
 
-    struct U64OrStrVisitor;
+    struct IntOrStrVisitor<T>(PhantomData<T>);
 
-    impl Visitor<'_> for U64OrStrVisitor {
-        type Value = u64;
+    impl<T> Visitor<'_> for IntOrStrVisitor<T>
+    where
+        T: std::str::FromStr,
+        <T as std::str::FromStr>::Err: std::fmt::Display,
+        T: TryFrom<u64>,
+        <T as TryFrom<u64>>::Error: std::fmt::Display,
+        T: TryFrom<i64>,
+        <T as TryFrom<i64>>::Error: std::fmt::Display,
+    {
+        type Value = T;
 
         fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
-            write!(formatter, "a string of ascii digits or a u64")
+            write!(formatter, "a string of ascii digits or an integer")
         }
 
         fn visit_str<E>(self, s: &str) -> Result<Self::Value, E>
@@ -78,20 +87,34 @@ mod u64_or_str {
         where
             E: serde::de::Error,
         {
-            Ok(value)
+            value.try_into().map_err(E::custom)
+        }
+
+        fn visit_i64<E>(self, value: i64) -> Result<Self::Value, E>
+        where
+            E: serde::de::Error,
+        {
+            value.try_into().map_err(E::custom)
         }
     }
 
-    pub(crate) fn deserialize<'de, D>(deserializer: D) -> Result<u64, D::Error>
+    pub(crate) fn deserialize<'de, T, D>(deserializer: D) -> Result<T, D::Error>
     where
         D: serde::Deserializer<'de>,
+        T: std::str::FromStr,
+        <T as std::str::FromStr>::Err: std::fmt::Display,
+        T: TryFrom<u64>,
+        <T as TryFrom<u64>>::Error: std::fmt::Display,
+        T: TryFrom<i64>,
+        <T as TryFrom<i64>>::Error: std::fmt::Display,
     {
-        deserializer.deserialize_any(U64OrStrVisitor)
+        deserializer.deserialize_any(IntOrStrVisitor(PhantomData))
     }
 
-    pub(crate) fn serialize<S>(value: &u64, serializer: S) -> Result<S::Ok, S::Error>
+    pub(crate) fn serialize<S, T>(value: &T, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
+        T: itoa::Integer,
     {
         serializer.serialize_str(itoa::Buffer::new().format(*value))
     }
