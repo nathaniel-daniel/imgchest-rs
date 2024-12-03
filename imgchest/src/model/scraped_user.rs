@@ -49,7 +49,7 @@ pub struct ScrapedUser {
     /// # Warning
     /// This is not a part of the real api struct.
     pub experience: u64,
-    
+
     /// The number of favorites by the user.
     ///
     /// # Warning

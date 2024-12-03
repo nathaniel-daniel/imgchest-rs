@@ -23,7 +23,7 @@ impl UserConfig {
             .insert("api-key", api_key.into());
         Ok(())
     }
-    
+
     /*
     pub fn get_api_key(&self) -> anyhow::Result<Option<()>> {
         self.document.as_table().get()

@@ -208,7 +208,6 @@ mod test {
         assert!(user.post_views >= 1867537);
         assert!(user.experience >= 12871);
         assert!(user.favorites == 0);
-        assert!(user.);
     }
 
     #[tokio::test]

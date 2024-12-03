@@ -15,7 +15,7 @@ struct Options {
 enum Subcommand {
     Config(self::command::config::Options),
     Download(self::command::download::Options),
-    // Profile(self::command::profile::Options),
+    Profile(self::command::profile::Options),
 }
 
 fn main() -> anyhow::Result<()> {
@@ -32,7 +32,7 @@ async fn async_main(options: Options) -> anyhow::Result<()> {
     match options.subcommand {
         Subcommand::Config(options) => self::command::config::exec(options).await?,
         Subcommand::Download(options) => self::command::download::exec(client, options).await?,
-        // Subcommand::Profile(options) => self::command::profile::exec(client, options).await?,
+        Subcommand::Profile(options) => self::command::profile::exec(client, options).await?,
     }
 
     Ok(())
