@@ -1,6 +1,8 @@
 use crate::UserConfig;
 use anyhow::bail;
 use anyhow::Context;
+use std::path::Path;
+use std::process::Command;
 
 #[derive(Debug, argh::FromArgs)]
 #[argh(subcommand, name = "config", description = "modify the cli config")]
@@ -42,7 +44,7 @@ pub async fn exec(options: Options) -> anyhow::Result<()> {
 
     match options.subcommand {
         Subcommand::Edit(_options) => {
-            opener::open(config_path)?;
+            open(&config_path)?;
         }
         Subcommand::Set(options) => {
             let mut config = UserConfig::new(&config_str)?;
@@ -61,6 +63,19 @@ pub async fn exec(options: Options) -> anyhow::Result<()> {
                 .await
                 .context("failed to save config")?;
         }
+    }
+
+    Ok(())
+}
+
+fn open(path: &Path) -> anyhow::Result<()> {
+    if cfg!(target_os = "linux") {
+        Command::new("editor")
+            .arg(path)
+            .status()
+            .context("failed to run \"editor\"")?;
+    } else {
+        opener::open(path)?;
     }
 
     Ok(())
