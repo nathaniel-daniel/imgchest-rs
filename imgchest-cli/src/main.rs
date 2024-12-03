@@ -10,6 +10,7 @@ struct Options {
 #[derive(Debug, argh::FromArgs)]
 #[argh(subcommand)]
 enum Subcommand {
+    Config(self::command::config::Options),
     Download(self::command::download::Options),
 }
 
@@ -25,6 +26,7 @@ async fn async_main(options: Options) -> anyhow::Result<()> {
     let client = imgchest::Client::new();
 
     match options.subcommand {
+        Subcommand::Config(options) => self::command::config::exec(options).await?,
         Subcommand::Download(options) => self::command::download::exec(client, options).await?,
     }
 
