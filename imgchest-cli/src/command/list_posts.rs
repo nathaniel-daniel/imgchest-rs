@@ -16,6 +16,15 @@ pub struct Options {
         description = "only include posts by this user"
     )]
     user: Option<String>,
+
+    #[argh(
+        option,
+        long = "page",
+        short = 'p',
+        description = "the page number to get",
+        default = "1"
+    )]
+    page: u64,
 }
 
 pub async fn exec(client: imgchest::Client, options: Options) -> anyhow::Result<()> {
@@ -42,6 +51,7 @@ pub async fn exec(client: imgchest::Client, options: Options) -> anyhow::Result<
     }
 
     let mut builder = imgchest::ListPostsBuilder::new();
+    builder.page = options.page;
     if let Some(user) = options.user {
         builder.username(user);
     }
