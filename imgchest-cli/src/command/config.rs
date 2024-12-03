@@ -1,5 +1,6 @@
 use crate::UserConfig;
 use anyhow::bail;
+use anyhow::ensure;
 use anyhow::Context;
 use std::path::Path;
 use std::process::Command;
@@ -70,10 +71,12 @@ pub async fn exec(options: Options) -> anyhow::Result<()> {
 
 fn open(path: &Path) -> anyhow::Result<()> {
     if cfg!(target_os = "linux") {
-        Command::new("editor")
+        let status = Command::new("editor")
             .arg(path)
             .status()
             .context("failed to run \"editor\"")?;
+
+        ensure!(status.success(), "bad exit code {status}");
     } else {
         opener::open(path)?;
     }
