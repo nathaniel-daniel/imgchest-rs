@@ -1,4 +1,6 @@
+use anyhow::ensure;
 use anyhow::Context;
+use url::Url;
 
 #[derive(Debug, argh::FromArgs)]
 #[argh(
@@ -12,8 +14,10 @@ pub struct Options {
 }
 
 pub async fn exec(client: imgchest::Client, options: Options) -> anyhow::Result<()> {
+    let user = extract_user(options.user).context("failed to extract user")?;
+
     let user = client
-        .get_scraped_user(&options.user)
+        .get_scraped_user(&user)
         .await
         .context("failed to scrape user")?;
 
@@ -33,6 +37,31 @@ pub async fn exec(client: imgchest::Client, options: Options) -> anyhow::Result<
     println!("Post Views: {}", PrettyFormatU64(user.post_views));
 
     Ok(())
+}
+
+fn extract_user(input: String) -> anyhow::Result<String> {
+    match Url::parse(input.as_str()) {
+        Ok(url) => {
+            // Validate url.
+            // We try to match https://imgchest.com/u/{user}
+            let host_str = url.host_str();
+            ensure!(
+                host_str == Some("imgchest.com"),
+                "url hast unknown host {host_str:?}"
+            );
+
+            let mut path = url.path_segments().context("url missing path")?;
+            ensure!(path.next() == Some("u"));
+
+            let user = path.next().context("url missing user path segment")?;
+
+            Ok(user.to_string())
+        }
+        Err(_error) => {
+            // Assume this is a user.
+            Ok(input)
+        }
+    }
 }
 
 struct PrettyFormatU64(pub u64);
