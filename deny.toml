@@ -32,6 +32,7 @@ highlight = "all"
 skip = [
     { name = "phf_shared", version = "0.10.0" },
     { name = "phf_generator", version = "0.10.0" },
+    { name = "windows-sys", version = "0.52.0" },
 ]
 deny = []
 
