@@ -27,7 +27,7 @@ const ONE_MINUTE: Duration = Duration::from_secs(60);
 const API_BASE: &str = "https://api.imgchest.com";
 
 /// A builder for listing posts
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ListPostsBuilder {
     /// How posts should be sorted.
     ///
@@ -38,6 +38,9 @@ pub struct ListPostsBuilder {
     ///
     /// Starts at 1.
     pub page: u64,
+
+    /// The username to filter posts by.
+    pub username: Option<String>,
 }
 
 impl ListPostsBuilder {
@@ -46,6 +49,7 @@ impl ListPostsBuilder {
         Self {
             sort: SortOrder::Popular,
             page: 1,
+            username: None,
         }
     }
 
@@ -62,6 +66,12 @@ impl ListPostsBuilder {
     /// Starts at 1.
     pub fn page(&mut self, page: u64) -> &mut Self {
         self.page = page;
+        self
+    }
+
+    /// Set the username to filter by.
+    pub fn username(&mut self, username: String) -> &mut Self {
+        self.username = Some(username);
         self
     }
 }
@@ -179,6 +189,10 @@ impl Client {
                 SortOrder::Old => "old",
             };
             query_pairs.append_pair("sort", sort_str);
+
+            if let Some(username) = builder.username.as_deref() {
+                query_pairs.append_pair("username", username);
+            }
         }
 
         let response = self.client.get(url.as_str()).send().await?;

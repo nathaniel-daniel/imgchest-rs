@@ -233,6 +233,16 @@ mod test {
             .expect("failed to list posts");
 
         dbg!(posts_old);
+
+        let mut builder = ListPostsBuilder::new();
+        builder.sort(SortOrder::Popular);
+        builder.username("LunarLandr".to_string());
+        let posts = client
+            .list_posts(builder)
+            .await
+            .expect("failed to list posts");
+
+        dbg!(posts);
     }
 
     #[tokio::test]
