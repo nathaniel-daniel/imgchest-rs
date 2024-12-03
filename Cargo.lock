@@ -775,6 +775,7 @@ dependencies = [
 name = "imgchest"
 version = "0.0.0"
 dependencies = [
+ "itoa",
  "once_cell",
  "reqwest",
  "scraper",

@@ -8,6 +8,7 @@ use crate::ApiResponse;
 use crate::ApiUpdateFilesBulkRequest;
 use crate::Error;
 use crate::FileUpdate;
+use crate::ListPostsPost;
 use crate::Post;
 use crate::PostFile;
 use crate::ScrapedPost;
@@ -15,6 +16,7 @@ use crate::ScrapedUser;
 use crate::User;
 use reqwest::header::AUTHORIZATION;
 use reqwest::multipart::Form;
+use reqwest::Url;
 use scraper::Html;
 use std::sync::Arc;
 use std::time::Duration;
@@ -23,6 +25,65 @@ use std::time::Instant;
 const REQUESTS_PER_MINUTE: u8 = 60;
 const ONE_MINUTE: Duration = Duration::from_secs(60);
 const API_BASE: &str = "https://api.imgchest.com";
+
+/// A builder for listing posts
+#[derive(Debug)]
+pub struct ListPostsBuilder {
+    /// How posts should be sorted.
+    ///
+    /// Defaults to popular.
+    pub sort: SortOrder,
+
+    /// The page to get.
+    ///
+    /// Starts at 1.
+    pub page: u64,
+}
+
+impl ListPostsBuilder {
+    /// Make a new builder
+    pub fn new() -> Self {
+        Self {
+            sort: SortOrder::Popular,
+            page: 1,
+        }
+    }
+
+    /// Set how posts should be sorted.
+    ///
+    /// Defaults to popular.
+    pub fn sort(&mut self, sort: SortOrder) -> &mut Self {
+        self.sort = sort;
+        self
+    }
+
+    /// Set the page to get.
+    ///
+    /// Starts at 1.
+    pub fn page(&mut self, page: u64) -> &mut Self {
+        self.page = page;
+        self
+    }
+}
+
+impl Default for ListPostsBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+/// Sort order
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
+pub enum SortOrder {
+    /// Sort by the most popular posts
+    Popular,
+
+    /// Sort by the newest posts
+    New,
+
+    /// Sort by the oldest posts
+    Old,
+}
 
 /// The client
 #[derive(Debug, Clone)]
@@ -50,6 +111,9 @@ impl Client {
     ///
     /// # Authorization
     /// This function does NOT require the use of a token.
+    ///
+    /// # Warning
+    /// This is a scraping-based function.
     pub async fn get_scraped_post(&self, id: &str) -> Result<ScrapedPost, Error> {
         let url = format!("https://imgchest.com/p/{id}");
         let text = self
@@ -74,6 +138,9 @@ impl Client {
     ///
     /// # Authorization
     /// This function does NOT require the use of a token.
+    ///
+    /// # Warning
+    /// This is a scraping-based function.
     pub async fn get_scraped_user(&self, name: &str) -> Result<ScrapedUser, Error> {
         let url = format!("https://imgchest.com/u/{name}");
         let text = self
@@ -92,6 +159,33 @@ impl Client {
         .await??;
 
         Ok(user)
+    }
+
+    /// List posts from various sources.
+    ///
+    /// # Authorization
+    /// This function does NOT require the use of a token.
+    ///
+    /// # Warning
+    /// This api call is undocumented.
+    pub async fn list_posts(&self, builder: ListPostsBuilder) -> Result<Vec<ListPostsPost>, Error> {
+        let mut url = Url::parse("https://imgchest.com/api/posts").unwrap();
+        {
+            let mut query_pairs = url.query_pairs_mut();
+
+            let sort_str = match builder.sort {
+                SortOrder::Popular => "popular",
+                SortOrder::New => "new",
+                SortOrder::Old => "old",
+            };
+            query_pairs.append_pair("sort", sort_str);
+        }
+
+        let response = self.client.get(url.as_str()).send().await?;
+
+        let posts: ApiResponse<_> = response.error_for_status()?.json().await?;
+
+        Ok(posts.data)
     }
 
     /// Set the token to use for future requests.
