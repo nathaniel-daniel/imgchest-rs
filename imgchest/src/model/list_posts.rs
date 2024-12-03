@@ -73,7 +73,7 @@ mod int_or_str {
         type Value = T;
 
         fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
-            write!(formatter, "a string of ascii digits or an integer")
+            write!(formatter, "a stringified integer or an integer")
         }
 
         fn visit_str<E>(self, s: &str) -> Result<Self::Value, E>

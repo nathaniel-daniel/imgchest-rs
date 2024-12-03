@@ -190,6 +190,8 @@ impl Client {
             };
             query_pairs.append_pair("sort", sort_str);
 
+            query_pairs.append_pair("page", itoa::Buffer::new().format(builder.page));
+
             if let Some(username) = builder.username.as_deref() {
                 query_pairs.append_pair("username", username);
             }
