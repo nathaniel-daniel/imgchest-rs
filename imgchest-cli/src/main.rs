@@ -1,4 +1,7 @@
 mod command;
+mod user_config;
+
+pub use self::user_config::UserConfig;
 
 #[derive(Debug, argh::FromArgs)]
 #[argh(description = "a cli to interact with imgchest.com")]
@@ -12,6 +15,7 @@ struct Options {
 enum Subcommand {
     Config(self::command::config::Options),
     Download(self::command::download::Options),
+    // Profile(self::command::profile::Options),
 }
 
 fn main() -> anyhow::Result<()> {
@@ -28,6 +32,7 @@ async fn async_main(options: Options) -> anyhow::Result<()> {
     match options.subcommand {
         Subcommand::Config(options) => self::command::config::exec(options).await?,
         Subcommand::Download(options) => self::command::download::exec(client, options).await?,
+        // Subcommand::Profile(options) => self::command::profile::exec(client, options).await?,
     }
 
     Ok(())

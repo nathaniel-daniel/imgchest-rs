@@ -1,10 +1,9 @@
+use crate::UserConfig;
 use anyhow::bail;
 use anyhow::Context;
 use directories_next::ProjectDirs;
-use std::path::Path;
 use tokio::fs::File;
 use tokio::io::AsyncWriteExt;
-use toml_edit::DocumentMut;
 
 const DEFAULT_CONFIG: &str = include_str!("./default-config.toml");
 
@@ -83,37 +82,10 @@ pub async fn exec(options: Options) -> anyhow::Result<()> {
 
             config
                 .save_to_path(&config_path)
+                .await
                 .context("failed to save config")?;
         }
     }
 
     Ok(())
-}
-
-#[derive(Debug)]
-struct UserConfig {
-    document: DocumentMut,
-}
-
-impl UserConfig {
-    fn new(input: &str) -> anyhow::Result<Self> {
-        let document: DocumentMut = input.parse().context("failed to parse config")?;
-
-        Ok(Self { document })
-    }
-
-    fn set_api_key(&mut self, api_key: String) -> anyhow::Result<()> {
-        self.document
-            .as_table_mut()
-            .insert("api-key", api_key.into());
-        Ok(())
-    }
-
-    fn save_to_path(&self, path: &Path) -> anyhow::Result<()> {
-        let temp_path = nd_util::with_push_extension(path, "tmp");
-        std::fs::write(&temp_path, self.document.to_string().as_bytes())?;
-        std::fs::rename(&temp_path, path)?;
-
-        Ok(())
-    }
 }
