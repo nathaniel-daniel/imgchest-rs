@@ -23,6 +23,8 @@ pub use self::model::ScrapedPostFile;
 pub use self::model::ScrapedUser;
 pub use self::model::User;
 pub use reqwest::Body;
+pub use reqwest_cookie_store::CookieStore;
+pub use reqwest_cookie_store::CookieStoreMutex;
 
 /// The error
 #[derive(Debug, thiserror::Error)]

@@ -17,6 +17,8 @@ use crate::User;
 use reqwest::header::AUTHORIZATION;
 use reqwest::multipart::Form;
 use reqwest::Url;
+use reqwest_cookie_store::CookieStore;
+use reqwest_cookie_store::CookieStoreMutex;
 use scraper::Html;
 use std::sync::Arc;
 use std::time::Duration;
@@ -225,6 +227,11 @@ impl Client {
             .read()
             .unwrap_or_else(|error| error.into_inner())
             .clone()
+    }
+
+    /// Get the cookie store.
+    pub fn get_cookie_store(&self) -> &Arc<CookieStoreMutex> {
+        &self.state.cookie_store
     }
 
     /// Get a post by id.
@@ -596,15 +603,26 @@ impl Default for Client {
 struct ClientState {
     token: std::sync::RwLock<Option<Arc<str>>>,
     ratelimit_data: std::sync::Mutex<(Instant, u8)>,
+
+    cookie_store: Arc<CookieStoreMutex>,
 }
 
 impl ClientState {
     fn new() -> Self {
+        let token = std::sync::RwLock::new(None);
+
         let now = Instant::now();
+        let ratelimit_data = std::sync::Mutex::new((now, REQUESTS_PER_MINUTE));
+
+        let cookie_store = CookieStore::new(None);
+        let cookie_store = CookieStoreMutex::new(cookie_store);
+        let cookie_store = Arc::new(cookie_store);
 
         Self {
-            token: std::sync::RwLock::new(None),
-            ratelimit_data: std::sync::Mutex::new((now, REQUESTS_PER_MINUTE)),
+            token,
+            ratelimit_data,
+
+            cookie_store,
         }
     }
 
