@@ -23,6 +23,37 @@ impl FromStr for OutputFormat {
     }
 }
 
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash, Default)]
+pub enum SortOrder {
+    #[default]
+    Popular,
+    Old,
+    New,
+}
+
+impl FromStr for SortOrder {
+    type Err = anyhow::Error;
+
+    fn from_str(input: &str) -> Result<Self, Self::Err> {
+        match input {
+            "popular" => Ok(Self::Popular),
+            "old" => Ok(Self::Old),
+            "new" => Ok(Self::New),
+            _ => bail!("unknown sort order \"{input}\""),
+        }
+    }
+}
+
+impl From<SortOrder> for imgchest::SortOrder {
+    fn from(sort: SortOrder) -> imgchest::SortOrder {
+        match sort {
+            SortOrder::Popular => Self::Popular,
+            SortOrder::Old => Self::Old,
+            SortOrder::New => Self::New,
+        }
+    }
+}
+
 #[derive(Debug, argh::FromArgs)]
 #[argh(
     subcommand,
@@ -46,6 +77,15 @@ pub struct Options {
         default = "1"
     )]
     page: u64,
+
+    #[argh(
+        option,
+        long = "sort",
+        short = 's',
+        description = "how to sort posts",
+        default = "Default::default()"
+    )]
+    sort: SortOrder,
 
     #[argh(
         option,
@@ -80,7 +120,7 @@ pub async fn exec(client: imgchest::Client, options: Options) -> anyhow::Result<
     }
 
     let mut builder = imgchest::ListPostsBuilder::new();
-    builder.page = options.page;
+    builder.page(options.page).sort(options.sort.into());
     if let Some(user) = options.user {
         builder.username(user);
     }
