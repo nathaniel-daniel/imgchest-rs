@@ -72,7 +72,6 @@ pub struct Options {
     #[argh(
         option,
         long = "page",
-        short = 'p',
         description = "the page number to get",
         default = "1"
     )]
@@ -86,6 +85,13 @@ pub struct Options {
         default = "Default::default()"
     )]
     sort: SortOrder,
+
+    #[argh(
+        switch,
+        long = "profile",
+        description = "whether to list posts for the current user"
+    )]
+    profile: bool,
 
     #[argh(
         option,
@@ -120,7 +126,10 @@ pub async fn exec(client: imgchest::Client, options: Options) -> anyhow::Result<
     }
 
     let mut builder = imgchest::ListPostsBuilder::new();
-    builder.page(options.page).sort(options.sort.into());
+    builder
+        .page(options.page)
+        .sort(options.sort.into())
+        .profile(options.profile);
     if let Some(user) = options.user {
         builder.username(user);
     }
