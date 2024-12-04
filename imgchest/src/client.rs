@@ -1,209 +1,100 @@
+mod builder;
+
+pub use self::builder::CreatePostBuilder;
+pub use self::builder::UpdatePostBuilder;
+pub use self::builder::UploadPostFile;
 use crate::ApiCompletedResponse;
 use crate::ApiResponse;
 use crate::ApiUpdateFilesBulkRequest;
 use crate::Error;
 use crate::FileUpdate;
+use crate::ListPostsPost;
 use crate::Post;
 use crate::PostFile;
-use crate::PostPrivacy;
 use crate::ScrapedPost;
 use crate::ScrapedUser;
 use crate::User;
 use reqwest::header::AUTHORIZATION;
 use reqwest::multipart::Form;
+use reqwest::Url;
+use reqwest_cookie_store::CookieStore;
+use reqwest_cookie_store::CookieStoreMutex;
 use scraper::Html;
-use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
 use std::time::Instant;
-use tokio_util::codec::BytesCodec;
-use tokio_util::codec::FramedRead;
 
 const REQUESTS_PER_MINUTE: u8 = 60;
 const ONE_MINUTE: Duration = Duration::from_secs(60);
 const API_BASE: &str = "https://api.imgchest.com";
 
-/// A builder for creating a post.
-///
-/// This builder is for the low-level function.
-#[derive(Debug)]
-pub struct CreatePostBuilder {
-    /// The title of the post.
+/// A builder for listing posts
+#[derive(Debug, Clone)]
+pub struct ListPostsBuilder {
+    /// How posts should be sorted.
     ///
-    /// If specified, it must be at least 3 characters long.
-    pub title: Option<String>,
+    /// Defaults to popular.
+    pub sort: SortOrder,
 
-    /// The post privacy.
+    /// The page to get.
     ///
-    /// Defaults to hidden.
-    pub privacy: Option<PostPrivacy>,
+    /// Starts at 1.
+    pub page: u64,
 
-    /// Whether the post should be tied to the user.
-    pub anonymous: Option<bool>,
-
-    /// Whether this post is nsfw.
-    pub nsfw: Option<bool>,
-
-    /// The images of the post
-    pub images: Vec<UploadPostFile>,
+    /// The username to filter posts by.
+    pub username: Option<String>,
 }
 
-impl CreatePostBuilder {
-    /// Create a new builder.
+impl ListPostsBuilder {
+    /// Make a new builder
     pub fn new() -> Self {
         Self {
-            title: None,
-            privacy: None,
-            anonymous: None,
-            nsfw: None,
-            images: Vec::new(),
+            sort: SortOrder::Popular,
+            page: 1,
+            username: None,
         }
     }
 
-    /// Set the title.
+    /// Set how posts should be sorted.
     ///
-    /// It must be at least 3 characters long.
-    pub fn title(&mut self, title: impl Into<String>) -> &mut Self {
-        self.title = Some(title.into());
+    /// Defaults to popular.
+    pub fn sort(&mut self, sort: SortOrder) -> &mut Self {
+        self.sort = sort;
         self
     }
 
-    /// Set the post privacy.
+    /// Set the page to get.
     ///
-    /// Defaults to hidden.
-    pub fn privacy(&mut self, privacy: PostPrivacy) -> &mut Self {
-        self.privacy = Some(privacy);
+    /// Starts at 1.
+    pub fn page(&mut self, page: u64) -> &mut Self {
+        self.page = page;
         self
     }
 
-    /// Set whether this post should be anonymous.
-    pub fn anonymous(&mut self, anonymous: bool) -> &mut Self {
-        self.anonymous = Some(anonymous);
-        self
-    }
-
-    /// Set whether this post is nsfw.
-    pub fn nsfw(&mut self, nsfw: bool) -> &mut Self {
-        self.nsfw = Some(nsfw);
-        self
-    }
-
-    /// Add a new image to this post.
-    pub fn image(&mut self, file: UploadPostFile) -> &mut Self {
-        self.images.push(file);
+    /// Set the username to filter by.
+    pub fn username(&mut self, username: String) -> &mut Self {
+        self.username = Some(username);
         self
     }
 }
 
-impl Default for CreatePostBuilder {
+impl Default for ListPostsBuilder {
     fn default() -> Self {
         Self::new()
     }
 }
 
-/// A post file that is meant for uploading.
-#[derive(Debug)]
-pub struct UploadPostFile {
-    /// The file name
-    file_name: String,
+/// Sort order
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
+pub enum SortOrder {
+    /// Sort by the most popular posts
+    Popular,
 
-    /// The file body
-    body: reqwest::Body,
-}
+    /// Sort by the newest posts
+    New,
 
-impl UploadPostFile {
-    /// Create this from a raw reqwest body.
-    pub fn from_body(file_name: &str, body: reqwest::Body) -> Self {
-        Self {
-            file_name: file_name.into(),
-            body,
-        }
-    }
-
-    /// Create this from bytes.
-    pub fn from_bytes(file_name: &str, file_data: Vec<u8>) -> Self {
-        Self::from_body(file_name, file_data.into())
-    }
-
-    /// Create this from a file.
-    pub fn from_file(file_name: &str, file: tokio::fs::File) -> Self {
-        let stream = FramedRead::new(file, BytesCodec::new());
-        let body = reqwest::Body::wrap_stream(stream);
-
-        Self::from_body(file_name, body)
-    }
-
-    /// Create this from a file at the given path.
-    pub async fn from_path<P>(path: P) -> std::io::Result<Self>
-    where
-        P: AsRef<Path>,
-    {
-        let path = path.as_ref();
-
-        let file_name = path
-            .file_name()
-            .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::Other, "missing file name"))?
-            .to_str()
-            .ok_or_else(|| {
-                std::io::Error::new(std::io::ErrorKind::Other, "file name is not valid unicode")
-            })?;
-
-        let file = tokio::fs::File::open(path).await?;
-
-        Ok(Self::from_file(file_name, file))
-    }
-}
-
-/// A builder for updating a post.
-#[derive(Debug)]
-pub struct UpdatePostBuilder {
-    /// The title
-    ///
-    /// If specified, it must be at least 3 characters long.
-    pub title: Option<String>,
-
-    /// The post privacy
-    pub privacy: Option<PostPrivacy>,
-
-    /// Whether the post is nsfw
-    pub nsfw: Option<bool>,
-}
-
-impl UpdatePostBuilder {
-    /// Create an empty post update.
-    pub fn new() -> Self {
-        Self {
-            title: None,
-            privacy: None,
-            nsfw: None,
-        }
-    }
-
-    /// Update the title.
-    ///
-    /// It must be at least 3 characters long.
-    pub fn title(&mut self, title: impl Into<String>) -> &mut Self {
-        self.title = Some(title.into());
-        self
-    }
-
-    /// Update the privacy.
-    pub fn privacy(&mut self, privacy: PostPrivacy) -> &mut Self {
-        self.privacy = Some(privacy);
-        self
-    }
-
-    /// Update the nsfw flag.
-    pub fn nsfw(&mut self, nsfw: bool) -> &mut Self {
-        self.nsfw = Some(nsfw);
-        self
-    }
-}
-
-impl Default for UpdatePostBuilder {
-    fn default() -> Self {
-        Self::new()
-    }
+    /// Sort by the oldest posts
+    Old,
 }
 
 /// The client
@@ -219,11 +110,12 @@ pub struct Client {
 impl Client {
     /// Make a new client
     pub fn new() -> Self {
+        let state = Arc::new(ClientState::new());
+
         let client = reqwest::Client::builder()
-            .cookie_store(true)
+            .cookie_provider(state.cookie_store.clone())
             .build()
             .expect("failed to build client");
-        let state = Arc::new(ClientState::new());
 
         Self { client, state }
     }
@@ -232,6 +124,9 @@ impl Client {
     ///
     /// # Authorization
     /// This function does NOT require the use of a token.
+    ///
+    /// # Warning
+    /// This is a scraping-based function.
     pub async fn get_scraped_post(&self, id: &str) -> Result<ScrapedPost, Error> {
         let url = format!("https://imgchest.com/p/{id}");
         let text = self
@@ -256,6 +151,9 @@ impl Client {
     ///
     /// # Authorization
     /// This function does NOT require the use of a token.
+    ///
+    /// # Warning
+    /// This is a scraping-based function.
     pub async fn get_scraped_user(&self, name: &str) -> Result<ScrapedUser, Error> {
         let url = format!("https://imgchest.com/u/{name}");
         let text = self
@@ -274,6 +172,39 @@ impl Client {
         .await??;
 
         Ok(user)
+    }
+
+    /// List posts from various sources.
+    ///
+    /// # Authorization
+    /// This function does NOT require the use of a token.
+    ///
+    /// # Warning
+    /// This api call is undocumented.
+    pub async fn list_posts(&self, builder: ListPostsBuilder) -> Result<Vec<ListPostsPost>, Error> {
+        let mut url = Url::parse("https://imgchest.com/api/posts").unwrap();
+        {
+            let mut query_pairs = url.query_pairs_mut();
+
+            let sort_str = match builder.sort {
+                SortOrder::Popular => "popular",
+                SortOrder::New => "new",
+                SortOrder::Old => "old",
+            };
+            query_pairs.append_pair("sort", sort_str);
+
+            query_pairs.append_pair("page", itoa::Buffer::new().format(builder.page));
+
+            if let Some(username) = builder.username.as_deref() {
+                query_pairs.append_pair("username", username);
+            }
+        }
+
+        let response = self.client.get(url.as_str()).send().await?;
+
+        let posts: ApiResponse<_> = response.error_for_status()?.json().await?;
+
+        Ok(posts.data)
     }
 
     /// Set the token to use for future requests.
@@ -297,6 +228,11 @@ impl Client {
             .read()
             .unwrap_or_else(|error| error.into_inner())
             .clone()
+    }
+
+    /// Get the cookie store.
+    pub fn get_cookie_store(&self) -> &Arc<CookieStoreMutex> {
+        &self.state.cookie_store
     }
 
     /// Get a post by id.
@@ -668,15 +604,26 @@ impl Default for Client {
 struct ClientState {
     token: std::sync::RwLock<Option<Arc<str>>>,
     ratelimit_data: std::sync::Mutex<(Instant, u8)>,
+
+    cookie_store: Arc<CookieStoreMutex>,
 }
 
 impl ClientState {
     fn new() -> Self {
+        let token = std::sync::RwLock::new(None);
+
         let now = Instant::now();
+        let ratelimit_data = std::sync::Mutex::new((now, REQUESTS_PER_MINUTE));
+
+        let cookie_store = CookieStore::new(None);
+        let cookie_store = CookieStoreMutex::new(cookie_store);
+        let cookie_store = Arc::new(cookie_store);
 
         Self {
-            token: std::sync::RwLock::new(None),
-            ratelimit_data: std::sync::Mutex::new((now, REQUESTS_PER_MINUTE)),
+            token,
+            ratelimit_data,
+
+            cookie_store,
         }
     }
 

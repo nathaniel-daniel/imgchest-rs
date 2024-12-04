@@ -30,6 +30,28 @@ impl UserConfig {
     }
     */
 
+    /// Get cookies
+    pub fn get_cookies(&self) -> anyhow::Result<Option<Vec<String>>> {
+        let cookies = match self.document.as_table().get("cookies") {
+            Some(cookies) => cookies,
+            None => return Ok(None),
+        };
+
+        let cookies = cookies.as_value().context("cookies key is not a value")?;
+        let cookies = cookies.as_array().context("cookies key is not an array")?;
+        let cookies = cookies
+            .iter()
+            .map(|value| {
+                value
+                    .as_str()
+                    .map(|value| value.to_string())
+                    .context("cookie array entry is not a string")
+            })
+            .collect::<anyhow::Result<Vec<_>>>()?;
+
+        Ok(Some(cookies))
+    }
+
     /// Save the config to a path.
     pub async fn save_to_path(&self, path: &Path) -> anyhow::Result<()> {
         let serialized = self.document.to_string();

@@ -1,8 +1,11 @@
 mod client;
 mod model;
+mod serde;
 
 pub use self::client::Client;
 pub use self::client::CreatePostBuilder;
+pub use self::client::ListPostsBuilder;
+pub use self::client::SortOrder;
 pub use self::client::UpdatePostBuilder;
 pub use self::client::UploadPostFile;
 use self::model::ApiCompletedResponse;
@@ -11,6 +14,7 @@ use self::model::ApiUpdateFilesBulkRequest;
 pub use self::model::FileUpdate;
 pub use self::model::InvalidScrapedPostError;
 pub use self::model::InvalidScrapedUserError;
+pub use self::model::ListPostsPost;
 pub use self::model::Post;
 pub use self::model::PostFile;
 pub use self::model::PostPrivacy;
@@ -19,6 +23,10 @@ pub use self::model::ScrapedPostFile;
 pub use self::model::ScrapedUser;
 pub use self::model::User;
 pub use reqwest::Body;
+pub use reqwest::Url;
+pub use reqwest_cookie_store::CookieStore;
+pub use reqwest_cookie_store::CookieStoreMutex;
+pub use reqwest_cookie_store::RawCookie;
 
 /// The error
 #[derive(Debug, thiserror::Error)]
@@ -208,6 +216,37 @@ mod test {
         assert!(user.post_views >= 1867537);
         assert!(user.experience >= 12871);
         assert!(user.favorites == 0);
+    }
+
+    #[tokio::test]
+    async fn list_posts_home() {
+        let client = Client::new();
+        let builder = ListPostsBuilder::new();
+        let posts = client
+            .list_posts(builder)
+            .await
+            .expect("failed to list posts");
+
+        dbg!(posts);
+
+        let mut builder = ListPostsBuilder::new();
+        builder.sort(SortOrder::Old);
+        let posts_old = client
+            .list_posts(builder)
+            .await
+            .expect("failed to list posts");
+
+        dbg!(posts_old);
+
+        let mut builder = ListPostsBuilder::new();
+        builder.sort(SortOrder::Popular);
+        builder.username("LunarLandr".to_string());
+        let posts = client
+            .list_posts(builder)
+            .await
+            .expect("failed to list posts");
+
+        dbg!(posts);
     }
 
     #[tokio::test]
