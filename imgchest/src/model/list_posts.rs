@@ -20,11 +20,11 @@ pub struct ListPostsPost {
     pub nsfw: bool,
 
     /// The score of the post
-    #[serde(with = "int_or_str")]
+    #[serde(deserialize_with = "int_or_str::deserialize")]
     pub score: i64,
 
     /// The number of comments on the post
-    #[serde(with = "int_or_str")]
+    #[serde(deserialize_with = "int_or_str::deserialize")]
     pub comments: u64,
 
     /// The number of views
@@ -111,6 +111,7 @@ mod int_or_str {
         deserializer.deserialize_any(IntOrStrVisitor(PhantomData))
     }
 
+    /*
     pub(crate) fn serialize<S, T>(value: &T, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
@@ -118,4 +119,5 @@ mod int_or_str {
     {
         serializer.serialize_str(itoa::Buffer::new().format(*value))
     }
+    */
 }

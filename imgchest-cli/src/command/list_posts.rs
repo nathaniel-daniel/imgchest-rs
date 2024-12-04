@@ -1,6 +1,27 @@
 use crate::UserConfig;
+use anyhow::bail;
 use anyhow::Context;
 use imgchest::Url;
+use std::str::FromStr;
+
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash, Default)]
+pub enum OutputFormat {
+    #[default]
+    Human,
+    Json,
+}
+
+impl FromStr for OutputFormat {
+    type Err = anyhow::Error;
+
+    fn from_str(input: &str) -> Result<Self, Self::Err> {
+        match input {
+            "human" => Ok(Self::Human),
+            "json" => Ok(Self::Json),
+            _ => bail!("unknown output format \"{input}\""),
+        }
+    }
+}
 
 #[derive(Debug, argh::FromArgs)]
 #[argh(
@@ -25,6 +46,14 @@ pub struct Options {
         default = "1"
     )]
     page: u64,
+
+    #[argh(
+        option,
+        long = "output-format",
+        default = "Default::default()",
+        description = "the output format"
+    )]
+    output_format: OutputFormat,
 }
 
 pub async fn exec(client: imgchest::Client, options: Options) -> anyhow::Result<()> {
@@ -61,6 +90,15 @@ pub async fn exec(client: imgchest::Client, options: Options) -> anyhow::Result<
         .await
         .context("failed to list posts")?;
 
+    match options.output_format {
+        OutputFormat::Human => output_human(&posts),
+        OutputFormat::Json => output_json(&posts)?,
+    }
+
+    Ok(())
+}
+
+fn output_human(posts: &[imgchest::ListPostsPost]) {
     for post in posts.iter() {
         println!("Id: {}", post.id);
         println!("Title: {}", post.title);
@@ -74,6 +112,10 @@ pub async fn exec(client: imgchest::Client, options: Options) -> anyhow::Result<
     if posts.is_empty() {
         println!("No results");
     }
+}
 
+fn output_json(posts: &[imgchest::ListPostsPost]) -> anyhow::Result<()> {
+    let stdout = std::io::stdout().lock();
+    serde_json::to_writer(stdout, posts)?;
     Ok(())
 }
