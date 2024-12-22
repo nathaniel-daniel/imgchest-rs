@@ -1,2 +1,10 @@
+# This is the user api key.
+# It can be created at https://imgchest.com/profile/api.
+# Currently, this is not used for anything.
 # api-key = "YOUR KEY HERE"
+
+# These are cookies from a web browser.
+# These are needed to do some actions,
+# like list nsfw posts or list posts from your own profile.
+# Each entry in this list should be a cookie string.
 # cookies = []

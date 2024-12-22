@@ -43,6 +43,9 @@ pub struct ListPostsBuilder {
 
     /// The username to filter posts by.
     pub username: Option<String>,
+
+    /// Whether to list posts from the current user.
+    pub profile: bool,
 }
 
 impl ListPostsBuilder {
@@ -52,6 +55,7 @@ impl ListPostsBuilder {
             sort: SortOrder::Popular,
             page: 1,
             username: None,
+            profile: false,
         }
     }
 
@@ -74,6 +78,12 @@ impl ListPostsBuilder {
     /// Set the username to filter by.
     pub fn username(&mut self, username: String) -> &mut Self {
         self.username = Some(username);
+        self
+    }
+
+    /// Set whether to list posts from the current user.
+    pub fn profile(&mut self, profile: bool) -> &mut Self {
+        self.profile = profile;
         self
     }
 }
@@ -197,6 +207,10 @@ impl Client {
 
             if let Some(username) = builder.username.as_deref() {
                 query_pairs.append_pair("username", username);
+            }
+
+            if builder.profile {
+                query_pairs.append_pair("profile", "true");
             }
         }
 
