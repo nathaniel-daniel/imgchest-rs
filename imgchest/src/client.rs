@@ -208,7 +208,7 @@ impl Client {
             if let Some(username) = builder.username.as_deref() {
                 query_pairs.append_pair("username", username);
             }
-            
+
             if builder.profile {
                 query_pairs.append_pair("profile", "true");
             }
