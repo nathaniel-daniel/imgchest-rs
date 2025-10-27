@@ -16,6 +16,8 @@ use crate::PostFile;
 use crate::ScrapedPost;
 use crate::ScrapedUser;
 use crate::User;
+use jiff::SignedDuration;
+use jiff::Timestamp;
 use reqwest::header::AUTHORIZATION;
 use reqwest::multipart::Form;
 use reqwest::Url;
@@ -24,10 +26,9 @@ use reqwest_cookie_store::CookieStoreMutex;
 use scraper::Html;
 use std::sync::Arc;
 use std::time::Duration;
-use std::time::Instant;
 
 const REQUESTS_PER_MINUTE: u8 = 60;
-const ONE_MINUTE: Duration = Duration::from_secs(60);
+const ONE_MINUTE: SignedDuration = SignedDuration::from_secs(60);
 const API_BASE: &str = "https://api.imgchest.com";
 
 fn bool_to_str(b: bool) -> &'static str {
@@ -40,20 +41,36 @@ fn bool_to_str(b: bool) -> &'static str {
 
 #[derive(Debug)]
 struct RatelimitState {
-    last_refreshed: Instant,
+    last_refreshed: Timestamp,
     remaining_requests: u8,
 }
 
 impl RatelimitState {
+    fn new() -> Self {
+        let last_refreshed = Timestamp::now();
+
+        /*
+        TimestampRound::new()
+            .smallest(Unit::Hour)
+            .mode(RoundMode::Trunc)
+        */
+
+        Self {
+            last_refreshed,
+            remaining_requests: REQUESTS_PER_MINUTE,
+        }
+    }
     /// Get the time needed to sleep to respect the ratelimit.
     ///
     /// # Returns
     /// Returns `None` is a request can be made.
     /// Otherwise, returns the time needed to sleep before calling this again.
     fn get_sleep_duration(&mut self) -> Option<Duration> {
+        let now = Timestamp::now();
+
         // Refresh the number of requests each minute.
-        if self.last_refreshed.elapsed() >= ONE_MINUTE {
-            self.last_refreshed = Instant::now();
+        if self.last_refreshed.duration_until(now) >= ONE_MINUTE {
+            self.last_refreshed = now;
             self.remaining_requests = REQUESTS_PER_MINUTE;
         }
 
@@ -64,7 +81,10 @@ impl RatelimitState {
         }
 
         // Otherwise, sleep until the next refresh and try again.
-        Some(ONE_MINUTE.saturating_sub(self.last_refreshed.elapsed()))
+        let duration = ONE_MINUTE.saturating_sub(self.last_refreshed.duration_until(now));
+        let duration = Duration::try_from(duration).unwrap_or(Duration::ZERO);
+
+        Some(duration)
     }
 }
 
@@ -79,12 +99,7 @@ struct ClientState {
 impl ClientState {
     fn new() -> Self {
         let token = std::sync::RwLock::new(None);
-
-        let now = Instant::now();
-        let ratelimit_state = std::sync::Mutex::new(RatelimitState {
-            last_refreshed: now,
-            remaining_requests: REQUESTS_PER_MINUTE,
-        });
+        let ratelimit_state = std::sync::Mutex::new(RatelimitState::new());
 
         let cookie_store = CookieStore::new();
         let cookie_store = CookieStoreMutex::new(cookie_store);
