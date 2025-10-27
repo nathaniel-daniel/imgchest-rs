@@ -39,9 +39,39 @@ fn bool_to_str(b: bool) -> &'static str {
 }
 
 #[derive(Debug)]
+struct RatelimitState {
+    last_refreshed: Instant,
+    remaining_requests: u8,
+}
+
+impl RatelimitState {
+    /// Get the time needed to sleep to respect the ratelimit.
+    ///
+    /// # Returns
+    /// Returns `None` is a request can be made.
+    /// Otherwise, returns the time needed to sleep before calling this again.
+    fn get_sleep_duration(&mut self) -> Option<Duration> {
+        // Refresh the number of requests each minute.
+        if self.last_refreshed.elapsed() >= ONE_MINUTE {
+            self.last_refreshed = Instant::now();
+            self.remaining_requests = REQUESTS_PER_MINUTE;
+        }
+
+        // If we are allowed to make a request now, make it.
+        if self.remaining_requests > 0 {
+            self.remaining_requests -= 1;
+            return None;
+        }
+
+        // Otherwise, sleep until the next refresh and try again.
+        Some(ONE_MINUTE.saturating_sub(self.last_refreshed.elapsed()))
+    }
+}
+
+#[derive(Debug)]
 struct ClientState {
     token: std::sync::RwLock<Option<Arc<str>>>,
-    ratelimit_data: std::sync::Mutex<(Instant, u8)>,
+    ratelimit_state: std::sync::Mutex<RatelimitState>,
 
     cookie_store: Arc<CookieStoreMutex>,
 }
@@ -51,7 +81,10 @@ impl ClientState {
         let token = std::sync::RwLock::new(None);
 
         let now = Instant::now();
-        let ratelimit_data = std::sync::Mutex::new((now, REQUESTS_PER_MINUTE));
+        let ratelimit_state = std::sync::Mutex::new(RatelimitState {
+            last_refreshed: now,
+            remaining_requests: REQUESTS_PER_MINUTE,
+        });
 
         let cookie_store = CookieStore::new();
         let cookie_store = CookieStoreMutex::new(cookie_store);
@@ -59,7 +92,7 @@ impl ClientState {
 
         Self {
             token,
-            ratelimit_data,
+            ratelimit_state,
 
             cookie_store,
         }
@@ -67,29 +100,17 @@ impl ClientState {
 
     async fn ratelimit(&self) {
         loop {
-            let sleep_duration = {
-                let mut ratelimit_data = self
-                    .ratelimit_data
-                    .lock()
-                    .expect("ratelimit mutex poisoned");
-                let (ref mut last_refreshed, ref mut remaining_requests) = &mut *ratelimit_data;
-
-                // Refresh the number of requests each minute.
-                if last_refreshed.elapsed() >= ONE_MINUTE {
-                    *last_refreshed = Instant::now();
-                    *remaining_requests = REQUESTS_PER_MINUTE;
+            let maybe_sleep_duration = self
+                .ratelimit_state
+                .lock()
+                .expect("ratelimit state mutex poisoned")
+                .get_sleep_duration();
+            match maybe_sleep_duration {
+                Some(sleep_duration) => {
+                    tokio::time::sleep(sleep_duration).await;
                 }
-
-                // If we are allowed to make a request now, make it.
-                if *remaining_requests > 0 {
-                    *remaining_requests -= 1;
-                    return;
-                }
-
-                // Otherwise, sleep until the next refresh and try again.
-                ONE_MINUTE.saturating_sub(last_refreshed.elapsed())
-            };
-            tokio::time::sleep(sleep_duration).await;
+                None => return,
+            }
         }
     }
 }

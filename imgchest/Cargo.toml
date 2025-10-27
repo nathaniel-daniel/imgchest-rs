@@ -16,6 +16,7 @@ thiserror = "2.0.17"
 tokio = "1.48.0"
 time = { version = "0.3.44", features = [ "serde", "parsing", "formatting" ] }
 tokio-util = "0.7.16"
+jiff = "0.2.15"
 
 [dev-dependencies]
 tokio = { version = "1.48.0", features = [ "macros" ] }
