@@ -16,8 +16,11 @@ use crate::PostFile;
 use crate::ScrapedPost;
 use crate::ScrapedUser;
 use crate::User;
+use jiff::RoundMode;
 use jiff::SignedDuration;
 use jiff::Timestamp;
+use jiff::TimestampRound;
+use jiff::Unit;
 use reqwest::header::AUTHORIZATION;
 use reqwest::multipart::Form;
 use reqwest::Url;
@@ -39,6 +42,12 @@ fn bool_to_str(b: bool) -> &'static str {
     }
 }
 
+fn minute_trunc_round_config() -> TimestampRound {
+    TimestampRound::new()
+        .smallest(Unit::Minute)
+        .mode(RoundMode::Trunc)
+}
+
 #[derive(Debug)]
 struct RatelimitState {
     last_refreshed: Timestamp,
@@ -47,13 +56,9 @@ struct RatelimitState {
 
 impl RatelimitState {
     fn new() -> Self {
-        let last_refreshed = Timestamp::now();
-
-        /*
-        TimestampRound::new()
-            .smallest(Unit::Hour)
-            .mode(RoundMode::Trunc)
-        */
+        let last_refreshed = Timestamp::now()
+            .round(minute_trunc_round_config())
+            .expect("invalid round config");
 
         Self {
             last_refreshed,
@@ -66,7 +71,9 @@ impl RatelimitState {
     /// Returns `None` is a request can be made.
     /// Otherwise, returns the time needed to sleep before calling this again.
     fn get_sleep_duration(&mut self) -> Option<Duration> {
-        let now = Timestamp::now();
+        let now = Timestamp::now()
+            .round(minute_trunc_round_config())
+            .expect("invalid round config");
 
         // Refresh the number of requests each minute.
         if self.last_refreshed.duration_until(now) >= ONE_MINUTE {
