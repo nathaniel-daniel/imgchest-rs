@@ -1,0 +1,2 @@
+createSrcSidebar('[["imgchest",["",[["client",[],["builder.rs"]],["model",[],["list_posts.rs","post.rs","scraped_post.rs","scraped_user.rs","user.rs"]]],["client.rs","lib.rs","model.rs","serde.rs"]]]]');
+//{"start":19,"fragment_lengths":[180]}
