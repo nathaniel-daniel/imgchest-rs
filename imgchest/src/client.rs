@@ -30,7 +30,9 @@ use scraper::Html;
 use std::sync::Arc;
 use std::time::Duration;
 
-const REQUESTS_PER_MINUTE: u8 = 60;
+// Should be 60, but that still triggers the ratelimit.
+// Add some leeway.
+const REQUESTS_PER_MINUTE: u8 = 55;
 const ONE_MINUTE: SignedDuration = SignedDuration::from_secs(60);
 const API_BASE: &str = "https://api.imgchest.com";
 
