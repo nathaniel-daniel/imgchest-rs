@@ -1,6 +1,8 @@
 mod builder;
 
 pub use self::builder::CreatePostBuilder;
+pub use self::builder::ListPostsBuilder;
+pub use self::builder::SortOrder;
 pub use self::builder::UpdatePostBuilder;
 pub use self::builder::UploadPostFile;
 use crate::ApiCompletedResponse;
@@ -28,83 +30,68 @@ const REQUESTS_PER_MINUTE: u8 = 60;
 const ONE_MINUTE: Duration = Duration::from_secs(60);
 const API_BASE: &str = "https://api.imgchest.com";
 
-/// A builder for listing posts
-#[derive(Debug, Clone)]
-pub struct ListPostsBuilder {
-    /// How posts should be sorted.
-    ///
-    /// Defaults to popular.
-    pub sort: SortOrder,
-
-    /// The page to get.
-    ///
-    /// Starts at 1.
-    pub page: u64,
-
-    /// The username to filter posts by.
-    pub username: Option<String>,
-
-    /// Whether to list posts from the current user.
-    pub profile: bool,
+fn bool_to_str(b: bool) -> &'static str {
+    if b {
+        "true"
+    } else {
+        "false"
+    }
 }
 
-impl ListPostsBuilder {
-    /// Make a new builder
-    pub fn new() -> Self {
+#[derive(Debug)]
+struct ClientState {
+    token: std::sync::RwLock<Option<Arc<str>>>,
+    ratelimit_data: std::sync::Mutex<(Instant, u8)>,
+
+    cookie_store: Arc<CookieStoreMutex>,
+}
+
+impl ClientState {
+    fn new() -> Self {
+        let token = std::sync::RwLock::new(None);
+
+        let now = Instant::now();
+        let ratelimit_data = std::sync::Mutex::new((now, REQUESTS_PER_MINUTE));
+
+        let cookie_store = CookieStore::new();
+        let cookie_store = CookieStoreMutex::new(cookie_store);
+        let cookie_store = Arc::new(cookie_store);
+
         Self {
-            sort: SortOrder::Popular,
-            page: 1,
-            username: None,
-            profile: false,
+            token,
+            ratelimit_data,
+
+            cookie_store,
         }
     }
 
-    /// Set how posts should be sorted.
-    ///
-    /// Defaults to popular.
-    pub fn sort(&mut self, sort: SortOrder) -> &mut Self {
-        self.sort = sort;
-        self
+    async fn ratelimit(&self) {
+        loop {
+            let sleep_duration = {
+                let mut ratelimit_data = self
+                    .ratelimit_data
+                    .lock()
+                    .expect("ratelimit mutex poisoned");
+                let (ref mut last_refreshed, ref mut remaining_requests) = &mut *ratelimit_data;
+
+                // Refresh the number of requests each minute.
+                if last_refreshed.elapsed() >= ONE_MINUTE {
+                    *last_refreshed = Instant::now();
+                    *remaining_requests = REQUESTS_PER_MINUTE;
+                }
+
+                // If we are allowed to make a request now, make it.
+                if *remaining_requests > 0 {
+                    *remaining_requests -= 1;
+                    return;
+                }
+
+                // Otherwise, sleep until the next refresh and try again.
+                ONE_MINUTE.saturating_sub(last_refreshed.elapsed())
+            };
+            tokio::time::sleep(sleep_duration).await;
+        }
     }
-
-    /// Set the page to get.
-    ///
-    /// Starts at 1.
-    pub fn page(&mut self, page: u64) -> &mut Self {
-        self.page = page;
-        self
-    }
-
-    /// Set the username to filter by.
-    pub fn username(&mut self, username: String) -> &mut Self {
-        self.username = Some(username);
-        self
-    }
-
-    /// Set whether to list posts from the current user.
-    pub fn profile(&mut self, profile: bool) -> &mut Self {
-        self.profile = profile;
-        self
-    }
-}
-
-impl Default for ListPostsBuilder {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-/// Sort order
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
-pub enum SortOrder {
-    /// Sort by the most popular posts
-    Popular,
-
-    /// Sort by the newest posts
-    New,
-
-    /// Sort by the oldest posts
-    Old,
 }
 
 /// The client
@@ -611,69 +598,5 @@ impl Client {
 impl Default for Client {
     fn default() -> Self {
         Self::new()
-    }
-}
-
-#[derive(Debug)]
-struct ClientState {
-    token: std::sync::RwLock<Option<Arc<str>>>,
-    ratelimit_data: std::sync::Mutex<(Instant, u8)>,
-
-    cookie_store: Arc<CookieStoreMutex>,
-}
-
-impl ClientState {
-    fn new() -> Self {
-        let token = std::sync::RwLock::new(None);
-
-        let now = Instant::now();
-        let ratelimit_data = std::sync::Mutex::new((now, REQUESTS_PER_MINUTE));
-
-        let cookie_store = CookieStore::new();
-        let cookie_store = CookieStoreMutex::new(cookie_store);
-        let cookie_store = Arc::new(cookie_store);
-
-        Self {
-            token,
-            ratelimit_data,
-
-            cookie_store,
-        }
-    }
-
-    async fn ratelimit(&self) {
-        loop {
-            let sleep_duration = {
-                let mut ratelimit_data = self
-                    .ratelimit_data
-                    .lock()
-                    .expect("ratelimit mutex poisoned");
-                let (ref mut last_refreshed, ref mut remaining_requests) = &mut *ratelimit_data;
-
-                // Refresh the number of requests each minute.
-                if last_refreshed.elapsed() >= ONE_MINUTE {
-                    *last_refreshed = Instant::now();
-                    *remaining_requests = REQUESTS_PER_MINUTE;
-                }
-
-                // If we are allowed to make a request now, make it.
-                if *remaining_requests > 0 {
-                    *remaining_requests -= 1;
-                    return;
-                }
-
-                // Otherwise, sleep until the next refresh and try again.
-                ONE_MINUTE.saturating_sub(last_refreshed.elapsed())
-            };
-            tokio::time::sleep(sleep_duration).await;
-        }
-    }
-}
-
-fn bool_to_str(b: bool) -> &'static str {
-    if b {
-        "true"
-    } else {
-        "false"
     }
 }

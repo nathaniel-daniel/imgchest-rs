@@ -183,3 +183,82 @@ impl Default for UpdatePostBuilder {
         Self::new()
     }
 }
+
+/// Sort order
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
+pub enum SortOrder {
+    /// Sort by the most popular posts
+    Popular,
+
+    /// Sort by the newest posts
+    New,
+
+    /// Sort by the oldest posts
+    Old,
+}
+
+/// A builder for listing posts
+#[derive(Debug, Clone)]
+pub struct ListPostsBuilder {
+    /// How posts should be sorted.
+    ///
+    /// Defaults to popular.
+    pub sort: SortOrder,
+
+    /// The page to get.
+    ///
+    /// Starts at 1.
+    pub page: u64,
+
+    /// The username to filter posts by.
+    pub username: Option<String>,
+
+    /// Whether to list posts from the current user.
+    pub profile: bool,
+}
+
+impl ListPostsBuilder {
+    /// Make a new builder
+    pub fn new() -> Self {
+        Self {
+            sort: SortOrder::Popular,
+            page: 1,
+            username: None,
+            profile: false,
+        }
+    }
+
+    /// Set how posts should be sorted.
+    ///
+    /// Defaults to popular.
+    pub fn sort(&mut self, sort: SortOrder) -> &mut Self {
+        self.sort = sort;
+        self
+    }
+
+    /// Set the page to get.
+    ///
+    /// Starts at 1.
+    pub fn page(&mut self, page: u64) -> &mut Self {
+        self.page = page;
+        self
+    }
+
+    /// Set the username to filter by.
+    pub fn username(&mut self, username: String) -> &mut Self {
+        self.username = Some(username);
+        self
+    }
+
+    /// Set whether to list posts from the current user.
+    pub fn profile(&mut self, profile: bool) -> &mut Self {
+        self.profile = profile;
+        self
+    }
+}
+
+impl Default for ListPostsBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
