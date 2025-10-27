@@ -6,12 +6,24 @@ targets = [
 ]
 
 [advisories]
-ignore = []
+ignore = [
+    # Blocked on scraper update
+    "RUSTSEC-2025-0057",
+]
 
 [licenses]
 confidence-threshold = 0.93
 private = { ignore = true }
-allow = [ "Apache-2.0", "MIT", "BSD-3-Clause", "MPL-2.0", "ISC", "OpenSSL", "Unicode-3.0" ]
+allow = [ 
+    "Apache-2.0",
+    "BSD-3-Clause",
+    "CDLA-Permissive-2.0",
+    "ISC",
+    "MIT",
+    "MPL-2.0",
+    "OpenSSL",
+    "Unicode-3.0",
+]
 exceptions = []
 
 [[licenses.clarify]]
@@ -30,10 +42,12 @@ license-files = [
 multiple-versions = "warn"
 highlight = "all"
 skip = [
-    { name = "windows-sys", version = "0.52.0" },
     { name = "windows_x86_64_msvc", version = "0.52.6" },
     { name = "windows_x86_64_gnu", version = "0.52.6" },
     { name = "windows-targets", version = "0.52.6" },
+    { name = "windows-sys", version = "0.59.0" },
+    { name = "windows-sys", version = "0.60.2" },
+    { name = "cookie_store", version = "0.21.1" },
 ]
 deny = []
 

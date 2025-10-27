@@ -629,7 +629,7 @@ impl ClientState {
         let now = Instant::now();
         let ratelimit_data = std::sync::Mutex::new((now, REQUESTS_PER_MINUTE));
 
-        let cookie_store = CookieStore::new(None);
+        let cookie_store = CookieStore::new();
         let cookie_store = CookieStoreMutex::new(cookie_store);
         let cookie_store = Arc::new(cookie_store);
 

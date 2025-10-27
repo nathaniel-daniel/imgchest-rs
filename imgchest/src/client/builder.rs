@@ -122,11 +122,9 @@ impl UploadPostFile {
 
         let file_name = path
             .file_name()
-            .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::Other, "missing file name"))?
+            .ok_or_else(|| std::io::Error::other("missing file name"))?
             .to_str()
-            .ok_or_else(|| {
-                std::io::Error::new(std::io::ErrorKind::Other, "file name is not valid unicode")
-            })?;
+            .ok_or_else(|| std::io::Error::other("file name is not valid unicode"))?;
 
         let file = tokio::fs::File::open(path).await?;
 
