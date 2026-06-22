@@ -21,9 +21,9 @@ use jiff::SignedDuration;
 use jiff::Timestamp;
 use jiff::TimestampRound;
 use jiff::Unit;
+use reqwest::Url;
 use reqwest::header::AUTHORIZATION;
 use reqwest::multipart::Form;
-use reqwest::Url;
 use reqwest_cookie_store::CookieStore;
 use reqwest_cookie_store::CookieStoreMutex;
 use scraper::Html;
@@ -37,11 +37,7 @@ const ONE_MINUTE: SignedDuration = SignedDuration::from_secs(60);
 const API_BASE: &str = "https://api.imgchest.com";
 
 fn bool_to_str(b: bool) -> &'static str {
-    if b {
-        "true"
-    } else {
-        "false"
-    }
+    if b { "true" } else { "false" }
 }
 
 fn minute_trunc_round_config() -> TimestampRound {

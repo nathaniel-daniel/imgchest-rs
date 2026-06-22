@@ -1,6 +1,6 @@
 use crate::UserConfig;
-use anyhow::bail;
 use anyhow::Context;
+use anyhow::bail;
 use imgchest::Url;
 use std::str::FromStr;
 

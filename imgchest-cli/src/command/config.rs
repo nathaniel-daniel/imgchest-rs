@@ -1,7 +1,7 @@
 use crate::UserConfig;
+use anyhow::Context;
 use anyhow::bail;
 use anyhow::ensure;
-use anyhow::Context;
 use std::path::Path;
 use std::process::Command;
 

@@ -56,7 +56,7 @@ impl UserConfig {
     pub async fn save_to_path(&self, path: &Path) -> anyhow::Result<()> {
         let serialized = self.document.to_string();
 
-        let temp_path = nd_util::with_push_extension(path, "tmp");
+        let temp_path = path.with_added_extension("tmp");
         tokio::fs::write(&temp_path, serialized.as_bytes()).await?;
         tokio::fs::rename(&temp_path, path).await?;
 
