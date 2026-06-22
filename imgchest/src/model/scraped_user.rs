@@ -1,11 +1,11 @@
-use once_cell::sync::Lazy;
 use scraper::Html;
 use scraper::Selector;
+use std::sync::LazyLock;
 use time::Date;
 use time::OffsetDateTime;
 use time::Time;
 
-static APP_SELECTOR: Lazy<Selector> = Lazy::new(|| Selector::parse("#app").unwrap());
+static APP_SELECTOR: LazyLock<Selector> = LazyLock::new(|| Selector::parse("#app").unwrap());
 
 /// An error that may occur while parsing a post
 #[derive(Debug, thiserror::Error)]

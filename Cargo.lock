@@ -769,7 +769,6 @@ version = "0.0.0"
 dependencies = [
  "itoa",
  "jiff",
- "once_cell",
  "reqwest",
  "reqwest_cookie_store",
  "scraper",
