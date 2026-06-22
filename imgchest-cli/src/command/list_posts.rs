@@ -1,47 +1,20 @@
 use crate::UserConfig;
 use anyhow::Context;
-use anyhow::bail;
 use imgchest::Url;
-use std::str::FromStr;
 
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash, Default)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash, Default, clap::ValueEnum)]
 pub enum OutputFormat {
     #[default]
     Human,
     Json,
 }
 
-impl FromStr for OutputFormat {
-    type Err = anyhow::Error;
-
-    fn from_str(input: &str) -> Result<Self, Self::Err> {
-        match input {
-            "human" => Ok(Self::Human),
-            "json" => Ok(Self::Json),
-            _ => bail!("unknown output format \"{input}\""),
-        }
-    }
-}
-
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash, Default)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash, Default, clap::ValueEnum)]
 pub enum SortOrder {
     #[default]
     Popular,
     Old,
     New,
-}
-
-impl FromStr for SortOrder {
-    type Err = anyhow::Error;
-
-    fn from_str(input: &str) -> Result<Self, Self::Err> {
-        match input {
-            "popular" => Ok(Self::Popular),
-            "old" => Ok(Self::Old),
-            "new" => Ok(Self::New),
-            _ => bail!("unknown sort order \"{input}\""),
-        }
-    }
 }
 
 impl From<SortOrder> for imgchest::SortOrder {
@@ -54,50 +27,31 @@ impl From<SortOrder> for imgchest::SortOrder {
     }
 }
 
-#[derive(Debug, argh::FromArgs)]
-#[argh(
-    subcommand,
-    name = "list-posts",
-    description = "list posts from various imgchest sources"
-)]
+#[derive(Debug, Clone, clap::Parser)]
+#[command(about = "List posts from various imgchest sources")]
 pub struct Options {
-    #[argh(
-        option,
-        long = "user",
-        short = 'u',
-        description = "only include posts by this user"
-    )]
+    #[arg(long = "user", short = 'u', help = "Only include posts by this user")]
     user: Option<String>,
 
-    #[argh(
-        option,
-        long = "page",
-        description = "the page number to get",
-        default = "1"
-    )]
+    #[arg(long = "page", help = "The page number to get", default_value = "1")]
     page: u64,
 
-    #[argh(
-        option,
+    #[arg(
+        value_enum,
         long = "sort",
         short = 's',
-        description = "how to sort posts",
-        default = "Default::default()"
+        help = "How to sort posts",
+        default_value = "popular"
     )]
     sort: SortOrder,
 
-    #[argh(
-        switch,
-        long = "profile",
-        description = "whether to list posts for the current user"
-    )]
+    #[arg(long = "profile", help = "Whether to list posts for the current user")]
     profile: bool,
 
-    #[argh(
-        option,
+    #[arg(
         long = "output-format",
-        default = "Default::default()",
-        description = "the output format"
+        default_value = "human",
+        help = "The output format"
     )]
     output_format: OutputFormat,
 }

@@ -1,18 +1,18 @@
 mod command;
 mod user_config;
 mod util;
+use clap::Parser;
 
 pub use self::user_config::UserConfig;
 
-#[derive(Debug, argh::FromArgs)]
-#[argh(description = "a cli to interact with imgchest.com")]
+#[derive(Debug, Parser)]
+#[command(about = "A cli to interact with imgchest.com")]
 struct Options {
-    #[argh(subcommand)]
+    #[command(subcommand)]
     subcommand: Subcommand,
 }
 
-#[derive(Debug, argh::FromArgs)]
-#[argh(subcommand)]
+#[derive(Debug, Clone, clap::Subcommand)]
 enum Subcommand {
     Config(self::command::config::Options),
     Download(self::command::download::Options),
@@ -21,7 +21,7 @@ enum Subcommand {
 }
 
 fn main() -> anyhow::Result<()> {
-    let options = argh::from_env();
+    let options = Options::parse();
     let tokio_rt = tokio::runtime::Builder::new_multi_thread()
         .enable_all()
         .build()?;
