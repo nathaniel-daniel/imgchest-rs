@@ -21,15 +21,8 @@ pub async fn exec(client: imgchest::Client, options: Options) -> anyhow::Result<
         .await
         .context("failed to scrape user")?;
 
-    let created_date = user.created.date();
-
     println!("Name: {}", user.name);
-    println!(
-        "Joined: {}/{}/{}",
-        created_date.month() as u8,
-        created_date.day(),
-        created_date.year()
-    );
+    println!("Joined: {}", user.created.strftime("%m/%d/%Y"),);
     println!("XP: {}", PrettyFormatU64(user.experience));
     println!("Posts: {}", user.posts);
     println!("Comments: {}", user.comments);

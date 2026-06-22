@@ -1,11 +1,33 @@
+use jiff::civil::Date;
 use scraper::Html;
 use scraper::Selector;
 use std::sync::LazyLock;
-use time::Date;
-use time::OffsetDateTime;
-use time::Time;
 
 static APP_SELECTOR: LazyLock<Selector> = LazyLock::new(|| Selector::parse("#app").unwrap());
+
+#[derive(Debug, serde::Deserialize)]
+struct PageData {
+    props: PageDataProps,
+}
+
+#[derive(Debug, serde::Deserialize)]
+struct PageDataProps {
+    #[serde(rename = "targetUser")]
+    target_user: TargetUser,
+}
+
+#[derive(Debug, serde::Deserialize)]
+struct TargetUser {
+    username: Box<str>,
+    post_count: u64,
+    comment_count: u64,
+    #[serde(with = "crate::serde::mdy_date")]
+    created_at: Date,
+
+    post_views: u64,
+    experience: u64,
+    favorite_count: u64,
+}
 
 /// An error that may occur while parsing a post
 #[derive(Debug, thiserror::Error)]
@@ -32,11 +54,9 @@ pub struct ScrapedUser {
     /// The number of comments created by this user
     pub comments: u64,
 
-    /// The time this user was created.
-    ///
-    /// # Warning
-    /// This is an estimate.
-    pub created: OffsetDateTime,
+    /// The date this user was created.
+    #[serde(with = "crate::serde::mdy_date")]
+    pub created: Date,
 
     /// The number of views all posts made by this user have gotten.
     ///
@@ -76,10 +96,7 @@ impl ScrapedUser {
             name: page_data.props.target_user.username,
             posts: page_data.props.target_user.post_count,
             comments: page_data.props.target_user.comment_count,
-            created: OffsetDateTime::new_utc(
-                page_data.props.target_user.created_at,
-                Time::MIDNIGHT,
-            ),
+            created: page_data.props.target_user.created_at,
 
             post_views: page_data.props.target_user.post_views,
             experience: page_data.props.target_user.experience,
@@ -87,29 +104,3 @@ impl ScrapedUser {
         })
     }
 }
-
-#[derive(Debug, serde::Deserialize)]
-struct PageData {
-    props: PageDataProps,
-}
-
-#[derive(Debug, serde::Deserialize)]
-struct PageDataProps {
-    #[serde(rename = "targetUser")]
-    target_user: TargetUser,
-}
-
-#[derive(Debug, serde::Deserialize)]
-struct TargetUser {
-    username: Box<str>,
-    post_count: u64,
-    comment_count: u64,
-    #[serde(with = "mdy_date")]
-    created_at: Date,
-
-    post_views: u64,
-    experience: u64,
-    favorite_count: u64,
-}
-
-time::serde::format_description!(mdy_date, Date, "[month]/[day]/[year]");

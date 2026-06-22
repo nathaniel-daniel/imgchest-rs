@@ -1,5 +1,5 @@
+use jiff::Zoned;
 use std::num::NonZeroU32;
-use time::OffsetDateTime;
 
 /// An API post object
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
@@ -30,8 +30,8 @@ pub struct Post {
     pub image_count: u64,
 
     /// The time this was created
-    #[serde(with = "time::serde::iso8601")]
-    pub created: OffsetDateTime,
+    #[serde(with = "crate::serde::iso8601_string")]
+    pub created: Zoned,
 
     /// The files of this post
     pub images: Box<[File]>,
@@ -62,8 +62,8 @@ pub struct File {
     pub position: NonZeroU32,
 
     /// The time this image was created.
-    #[serde(with = "time::serde::iso8601")]
-    pub created: OffsetDateTime,
+    #[serde(with = "crate::serde::iso8601_string")]
+    pub created: Zoned,
 
     /// The original name of the image.
     ///
