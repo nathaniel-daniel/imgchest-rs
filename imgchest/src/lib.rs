@@ -77,6 +77,10 @@ pub enum Error {
     /// The title is too short.
     #[error("title too short, must be at least 3 characters")]
     TitleTooShort,
+
+    /// The client was ratelimited.
+    #[error("ratelimited")]
+    Ratelimited,
 }
 
 #[cfg(test)]

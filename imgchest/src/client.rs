@@ -21,6 +21,7 @@ use jiff::SignedDuration;
 use jiff::Timestamp;
 use jiff::TimestampRound;
 use jiff::Unit;
+use reqwest::StatusCode;
 use reqwest::Url;
 use reqwest::header::AUTHORIZATION;
 use reqwest::multipart::Form;
@@ -29,10 +30,10 @@ use reqwest_cookie_store::CookieStoreMutex;
 use scraper::Html;
 use std::sync::Arc;
 use std::time::Duration;
+use tokio::sync::OwnedSemaphorePermit;
+use tokio::sync::Semaphore;
 
-// Should be 60, but that still triggers the ratelimit.
-// Add some leeway.
-const REQUESTS_PER_MINUTE: u8 = 40;
+const REQUESTS_PER_MINUTE: u8 = 60;
 const ONE_MINUTE: SignedDuration = SignedDuration::from_secs(60);
 const API_BASE: &str = "https://api.imgchest.com";
 
@@ -49,7 +50,7 @@ fn minute_trunc_round_config() -> TimestampRound {
 #[derive(Debug)]
 struct RatelimitState {
     last_refreshed: Timestamp,
-    remaining_requests: u8,
+    semaphore: Arc<Semaphore>,
 }
 
 impl RatelimitState {
@@ -60,15 +61,16 @@ impl RatelimitState {
 
         Self {
             last_refreshed,
-            remaining_requests: REQUESTS_PER_MINUTE,
+            semaphore: Arc::new(Semaphore::new(REQUESTS_PER_MINUTE.into())),
         }
     }
+
     /// Get the time needed to sleep to respect the ratelimit.
     ///
     /// # Returns
-    /// Returns `None` is a request can be made.
+    /// Returns a permit if a request can be made.
     /// Otherwise, returns the time needed to sleep before calling this again.
-    fn get_sleep_duration(&mut self) -> Option<Duration> {
+    fn get_sleep_duration(&mut self) -> Result<OwnedSemaphorePermit, Duration> {
         let now = Timestamp::now()
             .round(minute_trunc_round_config())
             .expect("invalid round config");
@@ -76,20 +78,21 @@ impl RatelimitState {
         // Refresh the number of requests each minute.
         if self.last_refreshed.duration_until(now) >= ONE_MINUTE {
             self.last_refreshed = now;
-            self.remaining_requests = REQUESTS_PER_MINUTE;
+            let remaining = self.semaphore.available_permits();
+            self.semaphore
+                .add_permits(usize::from(REQUESTS_PER_MINUTE) - remaining);
         }
 
         // If we are allowed to make a request now, make it.
-        if self.remaining_requests > 0 {
-            self.remaining_requests -= 1;
-            return None;
+        if let Ok(permit) = self.semaphore.clone().try_acquire_owned() {
+            return Ok(permit);
         }
 
         // Otherwise, sleep until the next refresh and try again.
         let duration = ONE_MINUTE.saturating_sub(self.last_refreshed.duration_until(now));
         let duration = Duration::try_from(duration).unwrap_or(Duration::ZERO);
 
-        Some(duration)
+        Err(duration)
     }
 }
 
@@ -118,18 +121,20 @@ impl ClientState {
         }
     }
 
-    async fn ratelimit(&self) {
+    async fn ratelimit(&self) -> OwnedSemaphorePermit {
         loop {
-            let maybe_sleep_duration = self
+            let sleep_duration_result = self
                 .ratelimit_state
                 .lock()
                 .expect("ratelimit state mutex poisoned")
                 .get_sleep_duration();
-            match maybe_sleep_duration {
-                Some(sleep_duration) => {
+            match sleep_duration_result {
+                Ok(permit) => {
+                    return permit;
+                }
+                Err(sleep_duration) => {
                     tokio::time::sleep(sleep_duration).await;
                 }
-                None => return,
             }
         }
     }
@@ -277,6 +282,35 @@ impl Client {
         &self.state.cookie_store
     }
 
+    async fn ratelimited<FN, FUT, R>(&self, mut func: FN) -> Result<R, Error>
+    where
+        FN: FnMut() -> FUT,
+        FUT: Future<Output = Result<R, Error>>,
+    {
+        let mut attempt = 0;
+        loop {
+            let _permit = self.state.ratelimit().await;
+
+            let future = func();
+            let result = future.await;
+
+            match result {
+                Ok(value) => {
+                    return Ok(value);
+                }
+                Err(Error::Reqwest(error))
+                    if error.status() == Some(StatusCode::TOO_MANY_REQUESTS) => {}
+                Err(error) => return Err(error),
+            }
+
+            if attempt == 3 {
+                return Err(Error::Ratelimited);
+            }
+            tokio::time::sleep(Duration::from_secs(attempt)).await;
+            attempt += 1;
+        }
+    }
+
     /// Get a post by id.
     ///
     /// # Authorization
@@ -285,18 +319,19 @@ impl Client {
         let token = self.get_token().ok_or(Error::MissingToken)?;
         let url = format!("{API_BASE}/v1/post/{id}");
 
-        self.state.ratelimit().await;
+        self.ratelimited(|| async {
+            let response = self
+                .client
+                .get(url.as_str())
+                .header(AUTHORIZATION, format!("Bearer {token}"))
+                .send()
+                .await?;
 
-        let response = self
-            .client
-            .get(url)
-            .header(AUTHORIZATION, format!("Bearer {token}"))
-            .send()
-            .await?;
+            let post: ApiResponse<_> = response.error_for_status()?.json().await?;
 
-        let post: ApiResponse<_> = response.error_for_status()?.json().await?;
-
-        Ok(post.data)
+            Ok(post.data)
+        })
+        .await
     }
 
     /// Create a post.
@@ -339,11 +374,11 @@ impl Client {
             form = form.part("images[]", part);
         }
 
-        self.state.ratelimit().await;
-
+        // This request cannot be retried since we use a streaming body.
+        let _permit = self.state.ratelimit().await;
         let response = self
             .client
-            .post(url)
+            .post(url.as_str())
             .header(AUTHORIZATION, format!("Bearer {token}"))
             .multipart(form)
             .send()
@@ -380,22 +415,23 @@ impl Client {
             form.push(("nsfw", bool_to_str(nsfw)));
         }
 
-        self.state.ratelimit().await;
-
         // Not using a multipart form here is intended.
         // Even though we use a multipart form for creating a post,
         // the server will silently ignore requests that aren't form-urlencoded.
-        let response = self
-            .client
-            .patch(url)
-            .header(AUTHORIZATION, format!("Bearer {token}"))
-            .form(&form)
-            .send()
-            .await?;
+        self.ratelimited(|| async {
+            let response = self
+                .client
+                .patch(url.as_str())
+                .header(AUTHORIZATION, format!("Bearer {token}"))
+                .form(&form)
+                .send()
+                .await?;
 
-        let post: ApiResponse<_> = response.error_for_status()?.json().await?;
+            let post: ApiResponse<_> = response.error_for_status()?.json().await?;
 
-        Ok(post.data)
+            Ok(post.data)
+        })
+        .await
     }
 
     /// Delete a post.
@@ -406,16 +442,20 @@ impl Client {
         let token = self.get_token().ok_or(Error::MissingToken)?;
         let url = format!("{API_BASE}/v1/post/{id}");
 
-        self.state.ratelimit().await;
-
         let response = self
-            .client
-            .delete(url)
-            .header(AUTHORIZATION, format!("Bearer {token}"))
-            .send()
-            .await?;
+            .ratelimited(|| async {
+                let response = self
+                    .client
+                    .delete(url.as_str())
+                    .header(AUTHORIZATION, format!("Bearer {token}"))
+                    .send()
+                    .await?;
 
-        let response: ApiCompletedResponse = response.error_for_status()?.json().await?;
+                let response: ApiCompletedResponse = response.error_for_status()?.json().await?;
+
+                Ok(response)
+            })
+            .await?;
         if !response.success {
             return Err(Error::ApiOperationFailed);
         }
@@ -435,16 +475,19 @@ impl Client {
         let token = self.get_token().ok_or(Error::MissingToken)?;
         let url = format!("{API_BASE}/v1/post/{id}/favorite");
 
-        self.state.ratelimit().await;
-
         let response = self
-            .client
-            .post(url)
-            .header(AUTHORIZATION, format!("Bearer {token}"))
-            .send()
-            .await?;
+            .ratelimited(|| async {
+                let response = self
+                    .client
+                    .post(url.as_str())
+                    .header(AUTHORIZATION, format!("Bearer {token}"))
+                    .send()
+                    .await?;
 
-        let response: ApiCompletedResponse = response.error_for_status()?.json().await?;
+                let response: ApiCompletedResponse = response.error_for_status()?.json().await?;
+                Ok(response)
+            })
+            .await?;
         if !response.success {
             return Err(Error::ApiOperationFailed);
         }
@@ -482,8 +525,8 @@ impl Client {
             return Err(Error::MissingImages);
         }
 
-        self.state.ratelimit().await;
-
+        // This request cannot be retried since we use a streaming body.
+        let _permit = self.state.ratelimit().await;
         let response = self
             .client
             .post(url)
@@ -505,18 +548,19 @@ impl Client {
         let token = self.get_token().ok_or(Error::MissingToken)?;
         let url = format!("{API_BASE}/v1/user/{username}");
 
-        self.state.ratelimit().await;
+        self.ratelimited(|| async {
+            let response = self
+                .client
+                .get(url.as_str())
+                .header(AUTHORIZATION, format!("Bearer {token}"))
+                .send()
+                .await?;
 
-        let response = self
-            .client
-            .get(url)
-            .header(AUTHORIZATION, format!("Bearer {token}"))
-            .send()
-            .await?;
+            let user: ApiResponse<_> = response.error_for_status()?.json().await?;
 
-        let user: ApiResponse<_> = response.error_for_status()?.json().await?;
-
-        Ok(user.data)
+            Ok(user.data)
+        })
+        .await
     }
 
     /// Get a file by id.
@@ -532,18 +576,19 @@ impl Client {
         let token = self.get_token().ok_or(Error::MissingToken)?;
         let url = format!("{API_BASE}/v1/file/{id}");
 
-        self.state.ratelimit().await;
+        self.ratelimited(|| async {
+            let response = self
+                .client
+                .get(url.as_str())
+                .header(AUTHORIZATION, format!("Bearer {token}"))
+                .send()
+                .await?;
 
-        let response = self
-            .client
-            .get(url)
-            .header(AUTHORIZATION, format!("Bearer {token}"))
-            .send()
-            .await?;
+            let file: ApiResponse<_> = response.error_for_status()?.json().await?;
 
-        let file: ApiResponse<_> = response.error_for_status()?.json().await?;
-
-        Ok(file.data)
+            Ok(file.data)
+        })
+        .await
     }
 
     /// Update a file.
@@ -558,17 +603,21 @@ impl Client {
             return Err(Error::MissingDescription);
         }
 
-        self.state.ratelimit().await;
-
         let response = self
-            .client
-            .patch(url)
-            .form(&[("description", description)])
-            .header(AUTHORIZATION, format!("Bearer {token}"))
-            .send()
+            .ratelimited(|| async {
+                let response = self
+                    .client
+                    .patch(url.as_str())
+                    .form(&[("description", description)])
+                    .header(AUTHORIZATION, format!("Bearer {token}"))
+                    .send()
+                    .await?;
+
+                let response: ApiCompletedResponse = response.error_for_status()?.json().await?;
+                Ok(response)
+            })
             .await?;
 
-        let response: ApiCompletedResponse = response.error_for_status()?.json().await?;
         if !response.success {
             return Err(Error::ApiOperationFailed);
         }
@@ -584,16 +633,19 @@ impl Client {
         let token = self.get_token().ok_or(Error::MissingToken)?;
         let url = format!("{API_BASE}/v1/file/{id}");
 
-        self.state.ratelimit().await;
-
         let response = self
-            .client
-            .delete(url)
-            .header(AUTHORIZATION, format!("Bearer {token}"))
-            .send()
-            .await?;
+            .ratelimited(|| async {
+                let response = self
+                    .client
+                    .delete(url.as_str())
+                    .header(AUTHORIZATION, format!("Bearer {token}"))
+                    .send()
+                    .await?;
 
-        let response: ApiCompletedResponse = response.error_for_status()?.json().await?;
+                let response: ApiCompletedResponse = response.error_for_status()?.json().await?;
+                Ok(response)
+            })
+            .await?;
         if !response.success {
             return Err(Error::ApiOperationFailed);
         }
@@ -620,19 +672,20 @@ impl Client {
             .collect::<Result<Vec<_>, _>>()?;
         let data = ApiUpdateFilesBulkRequest { data };
 
-        self.state.ratelimit().await;
+        self.ratelimited(|| async {
+            let response = self
+                .client
+                .patch(url.as_str())
+                .header(AUTHORIZATION, format!("Bearer {token}"))
+                .json(&data)
+                .send()
+                .await?;
 
-        let response = self
-            .client
-            .patch(url)
-            .header(AUTHORIZATION, format!("Bearer {token}"))
-            .json(&data)
-            .send()
-            .await?;
+            let file: ApiResponse<_> = response.error_for_status()?.json().await?;
 
-        let file: ApiResponse<_> = response.error_for_status()?.json().await?;
-
-        Ok(file.data)
+            Ok(file.data)
+        })
+        .await
     }
 }
 

@@ -1,7 +1,5 @@
 use crate::PostPrivacy;
 use std::path::Path;
-use tokio_util::codec::BytesCodec;
-use tokio_util::codec::FramedRead;
 
 /// A builder for creating a post.
 ///
@@ -107,8 +105,7 @@ impl UploadPostFile {
 
     /// Create this from a file.
     pub fn from_file(file_name: &str, file: tokio::fs::File) -> Self {
-        let stream = FramedRead::new(file, BytesCodec::new());
-        let body = reqwest::Body::wrap_stream(stream);
+        let body = reqwest::Body::from(file);
 
         Self::from_body(file_name, body)
     }
