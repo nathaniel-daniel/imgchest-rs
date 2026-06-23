@@ -81,6 +81,10 @@ pub enum Error {
     /// The client was ratelimited.
     #[error("ratelimited")]
     Ratelimited,
+
+    /// Io Error
+    #[error("io error")]
+    Io(#[from] std::io::Error),
 }
 
 #[cfg(test)]

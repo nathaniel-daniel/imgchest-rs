@@ -5,6 +5,7 @@ pub use self::builder::ListPostsBuilder;
 pub use self::builder::SortOrder;
 pub use self::builder::UpdatePostBuilder;
 pub use self::builder::UploadPostFile;
+use self::builder::bool_to_str;
 use crate::ApiCompletedResponse;
 use crate::ApiResponse;
 use crate::ApiUpdateFilesBulkRequest;
@@ -36,10 +37,6 @@ use tokio::sync::Semaphore;
 const REQUESTS_PER_MINUTE: u8 = 60;
 const ONE_MINUTE: SignedDuration = SignedDuration::from_secs(60);
 const API_BASE: &str = "https://api.imgchest.com";
-
-fn bool_to_str(b: bool) -> &'static str {
-    if b { "true" } else { "false" }
-}
 
 fn minute_trunc_round_config() -> TimestampRound {
     TimestampRound::new()
@@ -338,55 +335,44 @@ impl Client {
     ///
     /// # Authorization
     /// This function REQUIRES a token.
-    pub async fn create_post(&self, data: CreatePostBuilder) -> Result<Post, Error> {
+    pub async fn create_post(&self, builder: CreatePostBuilder) -> Result<Post, Error> {
         let token = self.get_token().ok_or(Error::MissingToken)?;
         let url = format!("{API_BASE}/v1/post");
 
-        let mut form = Form::new();
+        let mut maybe_builder = Some(builder);
+        self.ratelimited(move || {
+            let token = token.clone();
+            let url = url.clone();
+            let builder = match maybe_builder.take() {
+                Some(builder) => {
+                    let builder_clone = builder.try_clone();
 
-        if let Some(title) = data.title {
-            if title.len() < 3 {
-                return Err(Error::TitleTooShort);
+                    if let Some(builder_clone) = builder_clone {
+                        maybe_builder = Some(builder_clone);
+                    }
+
+                    Ok(builder)
+                }
+                None => Err(Error::Ratelimited),
+            };
+
+            async move {
+                let form = builder?.into_form().await?;
+
+                let response = self
+                    .client
+                    .post(url.as_str())
+                    .header(AUTHORIZATION, format!("Bearer {token}"))
+                    .multipart(form)
+                    .send()
+                    .await?;
+
+                let post: ApiResponse<_> = response.error_for_status()?.json().await?;
+
+                Ok(post.data)
             }
-
-            form = form.text("title", title);
-        }
-
-        if let Some(privacy) = data.privacy {
-            form = form.text("privacy", privacy.as_str());
-        }
-
-        if let Some(anonymous) = data.anonymous {
-            form = form.text("anonymous", bool_to_str(anonymous));
-        }
-
-        if let Some(nsfw) = data.nsfw {
-            form = form.text("nsfw", bool_to_str(nsfw));
-        }
-
-        if data.images.is_empty() {
-            return Err(Error::MissingImages);
-        }
-
-        for file in data.images {
-            let part = reqwest::multipart::Part::stream(file.body).file_name(file.file_name);
-
-            form = form.part("images[]", part);
-        }
-
-        // This request cannot be retried since we use a streaming body.
-        let _permit = self.state.ratelimit().await;
-        let response = self
-            .client
-            .post(url.as_str())
-            .header(AUTHORIZATION, format!("Bearer {token}"))
-            .multipart(form)
-            .send()
-            .await?;
-
-        let post: ApiResponse<_> = response.error_for_status()?.json().await?;
-
-        Ok(post.data)
+        })
+        .await
     }
 
     /// Update a post.
@@ -504,40 +490,68 @@ impl Client {
     ///
     /// # Authorization
     /// This function REQUIRES a token.
-    pub async fn add_post_images<I>(&self, id: &str, images: I) -> Result<Post, Error>
-    where
-        I: IntoIterator<Item = UploadPostFile>,
-    {
-        let token = self.get_token().ok_or(Error::MissingToken)?;
-        let url = format!("{API_BASE}/v1/post/{id}/add");
-
-        let mut form = Form::new();
-
-        let mut num_images = 0;
-        for file in images {
-            let part = reqwest::multipart::Part::stream(file.body).file_name(file.file_name);
-
-            form = form.part("images[]", part);
-            num_images += 1;
+    pub async fn add_post_images(
+        &self,
+        id: &str,
+        images: Vec<UploadPostFile>,
+    ) -> Result<Post, Error> {
+        fn try_clone(images: &[UploadPostFile]) -> Option<Vec<UploadPostFile>> {
+            images.iter().map(|image| image.try_clone()).collect()
         }
 
-        if num_images == 0 {
+        async fn into_form(images: Vec<UploadPostFile>) -> Result<Form, Error> {
+            let mut form = Form::new();
+
+            for file in images {
+                let body = file.body.into_body().await?;
+                let part = reqwest::multipart::Part::stream(body).file_name(file.file_name);
+
+                form = form.part("images[]", part);
+            }
+
+            Ok(form)
+        }
+
+        if images.is_empty() {
             return Err(Error::MissingImages);
         }
 
-        // This request cannot be retried since we use a streaming body.
-        let _permit = self.state.ratelimit().await;
-        let response = self
-            .client
-            .post(url)
-            .header(AUTHORIZATION, format!("Bearer {token}"))
-            .multipart(form)
-            .send()
-            .await?;
+        let token = self.get_token().ok_or(Error::MissingToken)?;
+        let url = format!("{API_BASE}/v1/post/{id}/add");
 
-        let post: ApiResponse<_> = response.error_for_status()?.json().await?;
+        let mut maybe_images = Some(images);
+        self.ratelimited(move || {
+            let token = token.clone();
+            let url = url.clone();
+            let images = match maybe_images.take() {
+                Some(images) => {
+                    let images_clone = try_clone(&images);
+                    if let Some(images_clone) = images_clone {
+                        maybe_images = Some(images_clone);
+                    }
 
-        Ok(post.data)
+                    Ok(images)
+                }
+                None => Err(Error::Ratelimited),
+            };
+
+            async move {
+                let form = into_form(images?).await?;
+
+                let response = self
+                    .client
+                    .post(url)
+                    .header(AUTHORIZATION, format!("Bearer {token}"))
+                    .multipart(form)
+                    .send()
+                    .await?;
+
+                let post: ApiResponse<_> = response.error_for_status()?.json().await?;
+
+                Ok(post.data)
+            }
+        })
+        .await
     }
 
     /// Get a user by username.

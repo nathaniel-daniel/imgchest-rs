@@ -1,5 +1,15 @@
+use crate::Error;
 use crate::PostPrivacy;
+use reqwest::multipart::Form;
 use std::path::Path;
+use std::pin::Pin;
+use std::sync::Arc;
+
+type BoxFuture<T> = Pin<Box<dyn Future<Output = T>>>;
+
+pub(super) fn bool_to_str(b: bool) -> &'static str {
+    if b { "true" } else { "false" }
+}
 
 /// A builder for creating a post.
 ///
@@ -71,6 +81,57 @@ impl CreatePostBuilder {
         self.images.push(file);
         self
     }
+
+    pub(super) fn try_clone(&self) -> Option<Self> {
+        Some(Self {
+            title: self.title.clone(),
+            privacy: self.privacy,
+            anonymous: self.anonymous,
+            nsfw: self.nsfw,
+            images: self
+                .images
+                .iter()
+                .map(|image| image.try_clone())
+                .collect::<Option<_>>()?,
+        })
+    }
+
+    pub(super) async fn into_form(self) -> Result<Form, Error> {
+        let mut form = Form::new();
+
+        if let Some(title) = self.title {
+            if title.len() < 3 {
+                return Err(Error::TitleTooShort);
+            }
+
+            form = form.text("title", title);
+        }
+
+        if let Some(privacy) = self.privacy {
+            form = form.text("privacy", privacy.as_str());
+        }
+
+        if let Some(anonymous) = self.anonymous {
+            form = form.text("anonymous", bool_to_str(anonymous));
+        }
+
+        if let Some(nsfw) = self.nsfw {
+            form = form.text("nsfw", bool_to_str(nsfw));
+        }
+
+        if self.images.is_empty() {
+            return Err(Error::MissingImages);
+        }
+
+        for file in self.images {
+            let body = file.body.into_body().await?;
+            let part = reqwest::multipart::Part::stream(body).file_name(file.file_name);
+
+            form = form.part("images[]", part);
+        }
+
+        Ok(form)
+    }
 }
 
 impl Default for CreatePostBuilder {
@@ -79,14 +140,34 @@ impl Default for CreatePostBuilder {
     }
 }
 
+pub(super) enum UploadPostFileBody {
+    Value(reqwest::Body),
+    Func(Arc<dyn Fn() -> BoxFuture<std::io::Result<reqwest::Body>>>),
+}
+
+impl UploadPostFileBody {
+    pub(super) async fn into_body(self) -> std::io::Result<reqwest::Body> {
+        match self {
+            UploadPostFileBody::Value(value) => Ok(value),
+            UploadPostFileBody::Func(func) => func().await,
+        }
+    }
+
+    pub(super) fn try_clone(&self) -> Option<Self> {
+        match self {
+            UploadPostFileBody::Value(_body) => None,
+            UploadPostFileBody::Func(func) => Some(Self::Func(func.clone())),
+        }
+    }
+}
+
 /// A post file that is meant for uploading.
-#[derive(Debug)]
 pub struct UploadPostFile {
     /// The file name
     pub(super) file_name: String,
 
     /// The file body
-    pub(super) body: reqwest::Body,
+    pub(super) body: UploadPostFileBody,
 }
 
 impl UploadPostFile {
@@ -94,7 +175,7 @@ impl UploadPostFile {
     pub fn from_body(file_name: &str, body: reqwest::Body) -> Self {
         Self {
             file_name: file_name.into(),
-            body,
+            body: UploadPostFileBody::Value(body),
         }
     }
 
@@ -106,7 +187,6 @@ impl UploadPostFile {
     /// Create this from a file.
     pub fn from_file(file_name: &str, file: tokio::fs::File) -> Self {
         let body = reqwest::Body::from(file);
-
         Self::from_body(file_name, body)
     }
 
@@ -115,7 +195,7 @@ impl UploadPostFile {
     where
         P: AsRef<Path>,
     {
-        let path = path.as_ref();
+        let path = path.as_ref().to_path_buf();
 
         let file_name = path
             .file_name()
@@ -123,9 +203,31 @@ impl UploadPostFile {
             .to_str()
             .ok_or_else(|| std::io::Error::other("file name is not valid unicode"))?;
 
-        let file = tokio::fs::File::open(path).await?;
+        Ok(Self {
+            file_name: file_name.into(),
+            body: UploadPostFileBody::Func(Arc::new(move || {
+                let path = path.clone();
+                Box::pin(async move {
+                    let file = tokio::fs::File::open(&path).await?;
+                    Ok(reqwest::Body::from(file))
+                })
+            })),
+        })
+    }
 
-        Ok(Self::from_file(file_name, file))
+    pub(super) fn try_clone(&self) -> Option<Self> {
+        Some(Self {
+            file_name: self.file_name.clone(),
+            body: self.body.try_clone()?,
+        })
+    }
+}
+
+impl std::fmt::Debug for UploadPostFile {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        f.debug_struct("UploadPostFile")
+            .field("file_name", &self.file_name)
+            .finish()
     }
 }
 
