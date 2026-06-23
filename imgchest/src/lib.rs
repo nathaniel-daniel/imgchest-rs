@@ -77,14 +77,23 @@ pub enum Error {
     /// The title is too short.
     #[error("title too short, must be at least 3 characters")]
     TitleTooShort,
+
+    /// The client was ratelimited.
+    #[error("ratelimited")]
+    Ratelimited,
+
+    /// Io Error
+    #[error("io error")]
+    Io(#[from] std::io::Error),
 }
 
 #[cfg(test)]
 mod test {
     use super::*;
+    use jiff::Zoned;
+    use jiff::fmt::temporal::Pieces;
+    use jiff::tz::TimeZone;
     use std::sync::OnceLock;
-    use time::format_description::well_known::Iso8601;
-    use time::OffsetDateTime;
 
     const POST_ID: &str = "3qe4gdvj4j2";
     const GIF_POST_ID: &str = "pwl7lgepyx2";
@@ -119,6 +128,16 @@ mod test {
         })
     }
 
+    fn parse_iso8601(value: &str) -> Zoned {
+        let pieces = Pieces::parse(value).unwrap();
+        let time = pieces.time().unwrap_or_else(jiff::civil::Time::midnight);
+        let datetime = pieces.date().to_datetime(time);
+        let Some(offset) = pieces.to_numeric_offset() else {
+            panic!("datetime string missing offset");
+        };
+        TimeZone::fixed(offset).to_zoned(datetime).unwrap()
+    }
+
     #[tokio::test]
     async fn get_scraped_post() {
         let client = Client::new();
@@ -137,15 +156,22 @@ mod test {
         // assert!(post.created == "2019-11-03T00:36:00.000000Z");
 
         assert!(&*post.images[0].id == "nw7w6cmlvye");
-        assert!(post.images[0]
-            .description
-            .as_ref()
-            .expect("missing description")
-            .starts_with("**Description**  \nReleased in the arcades in 1981, Donkey Kong"));
+        assert!(
+            post.images[0]
+                .description
+                .as_ref()
+                .expect("missing description")
+                .starts_with("**Description**  \nReleased in the arcades in 1981, Donkey Kong")
+        );
         assert!(&*post.images[0].link == "https://cdn.imgchest.com/files/nw7w6cmlvye.png");
 
         assert!(&*post.images[1].id == "kwye3cpag4b");
-        assert!(post.images[1].description.as_deref() == Some("amstrad - apple ii - atari - colecovision - c64 - msx\nnes - pc - vic-20 - spectrum - tI-99 4A - arcade"));
+        assert!(
+            post.images[1].description.as_deref()
+                == Some(
+                    "amstrad - apple ii - atari - colecovision - c64 - msx\nnes - pc - vic-20 - spectrum - tI-99 4A - arcade"
+                )
+        );
         assert!(&*post.images[1].link == "https://cdn.imgchest.com/files/kwye3cpag4b.png");
 
         assert!(&*post.images[2].id == "5g4z9c8ok72");
@@ -174,7 +200,12 @@ mod test {
         assert!(post.image_count == 1);
 
         assert!(&*post.images[0].id == "6yxkcz5ml7w");
-        assert!(post.images[0].description.as_deref() == Some("Notice how inserting an AGIF is now supported, but does not want to be moved from its initial position."));
+        assert!(
+            post.images[0].description.as_deref()
+                == Some(
+                    "Notice how inserting an AGIF is now supported, but does not want to be moved from its initial position."
+                )
+        );
         assert!(&*post.images[0].link == "https://cdn.imgchest.com/files/6yxkcz5ml7w.gif");
 
         dbg!(&post);
@@ -211,7 +242,7 @@ mod test {
         assert!(&*user.name == USER_NAME);
         assert!(user.posts >= 268);
         assert!(user.comments >= 1);
-        assert!(user.created == time::macros::datetime!(2019-09-25 0:00 UTC));
+        assert!(user.created == jiff::civil::date(2019, 9, 25));
 
         assert!(user.post_views >= 1867537);
         assert!(user.experience >= 12871);
@@ -278,54 +309,46 @@ mod test {
         assert!(post.views >= 198);
         assert!(!post.nsfw);
         assert!(post.image_count == 4);
-        assert!(
-            post.created
-                == OffsetDateTime::parse("2019-11-03T00:36:00.000000Z", &Iso8601::DEFAULT).unwrap()
-        );
+        assert!(post.created == parse_iso8601("2019-11-03T00:36:00.000000Z"));
         assert!(post.delete_url.is_none());
 
         assert!(&*post.images[0].id == "nw7w6cmlvye");
-        assert!(post.images[0]
-            .description
-            .as_ref()
-            .expect("missing description")
-            .starts_with("**Description**  \nReleased in the arcades in 1981, Donkey Kong"));
+        assert!(
+            post.images[0]
+                .description
+                .as_ref()
+                .expect("missing description")
+                .starts_with("**Description**  \nReleased in the arcades in 1981, Donkey Kong")
+        );
         assert!(&*post.images[0].link == "https://cdn.imgchest.com/files/nw7w6cmlvye.png");
         assert!(post.images[0].position.get() == 1);
-        assert!(
-            post.images[0].created
-                == OffsetDateTime::parse("2019-11-03T00:36:00.000000Z", &Iso8601::DEFAULT).unwrap()
-        );
+        assert!(post.images[0].created == parse_iso8601("2019-11-03T00:36:00.000000Z"));
         assert!(post.images[0].original_name.is_none());
 
         assert!(&*post.images[1].id == "kwye3cpag4b");
-        assert!(post.images[1].description.as_deref() == Some("amstrad - apple ii - atari - colecovision - c64 - msx\nnes - pc - vic-20 - spectrum - tI-99 4A - arcade"));
+        assert!(
+            post.images[1].description.as_deref()
+                == Some(
+                    "amstrad - apple ii - atari - colecovision - c64 - msx\nnes - pc - vic-20 - spectrum - tI-99 4A - arcade"
+                )
+        );
         assert!(&*post.images[1].link == "https://cdn.imgchest.com/files/kwye3cpag4b.png");
         assert!(post.images[1].position.get() == 2);
-        assert!(
-            post.images[1].created
-                == OffsetDateTime::parse("2019-11-03T00:36:00.000000Z", &Iso8601::DEFAULT).unwrap()
-        );
+        assert!(post.images[1].created == parse_iso8601("2019-11-03T00:36:00.000000Z"));
         assert!(post.images[1].original_name.is_none());
 
         assert!(&*post.images[2].id == "5g4z9c8ok72");
         assert!(post.images[2].description.as_deref() == Some(""));
         assert!(&*post.images[2].link == "https://cdn.imgchest.com/files/5g4z9c8ok72.png");
         assert!(post.images[2].position.get() == 3);
-        assert!(
-            post.images[2].created
-                == OffsetDateTime::parse("2019-11-03T00:36:00.000000Z", &Iso8601::DEFAULT).unwrap()
-        );
+        assert!(post.images[2].created == parse_iso8601("2019-11-03T00:36:00.000000Z"));
         assert!(post.images[2].original_name.is_none());
 
         assert!(&*post.images[3].id == "we4gdcv5j4r");
         assert!(post.images[3].description.as_deref() == Some(""));
         assert!(&*post.images[3].link == "https://cdn.imgchest.com/files/we4gdcv5j4r.jpg");
         assert!(post.images[3].position.get() == 4);
-        assert!(
-            post.images[3].created
-                == OffsetDateTime::parse("2019-11-03T00:36:00.000000Z", &Iso8601::DEFAULT).unwrap()
-        );
+        assert!(post.images[3].created == parse_iso8601("2019-11-03T00:36:00.000000Z"));
         assert!(post.images[3].original_name.is_none());
 
         dbg!(&post);
@@ -342,10 +365,7 @@ mod test {
             .expect("failed to get user");
 
         assert!(&*user.name == "LunarLandr");
-        assert!(
-            user.created
-                == OffsetDateTime::parse("2019-09-25T01:00:45.000000Z", &Iso8601::DEFAULT).unwrap()
-        );
+        assert!(user.created == parse_iso8601("2019-09-25T01:00:45.000000Z"));
 
         dbg!(&user);
     }

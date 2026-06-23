@@ -1,5 +1,6 @@
 use anyhow::Context;
-use directories_next::ProjectDirs;
+use etcetera::AppStrategy;
+use etcetera::AppStrategyArgs;
 use std::path::Path;
 use std::path::PathBuf;
 use tokio::fs::File;
@@ -9,12 +10,17 @@ const DEFAULT_CONFIG: &str = include_str!("./default-config.toml");
 
 /// Get the config dir
 pub async fn get_config_dir() -> anyhow::Result<PathBuf> {
-    let project_dirs = ProjectDirs::from("", "", "imgchest-cli")
-        .context("failed to determine application directory")?;
-    let config_dir = project_dirs.config_dir();
-    tokio::fs::create_dir_all(config_dir).await?;
+    let strategy = etcetera::choose_app_strategy(AppStrategyArgs {
+        top_level_domain: "".to_string(),
+        author: "".to_string(),
+        app_name: "imgchest-cli".to_string(),
+    })
+    .context("failed to determine application directory")?;
+    let config_dir = strategy.config_dir();
 
-    Ok(config_dir.to_path_buf())
+    tokio::fs::create_dir_all(&config_dir).await?;
+
+    Ok(config_dir)
 }
 
 /// Get or init user config str

@@ -1,39 +1,34 @@
 use crate::UserConfig;
+use anyhow::Context;
 use anyhow::bail;
 use anyhow::ensure;
-use anyhow::Context;
 use std::path::Path;
 use std::process::Command;
 
-#[derive(Debug, argh::FromArgs)]
-#[argh(subcommand, name = "config", description = "modify the cli config")]
+#[derive(Debug, Clone, clap::Parser)]
+#[command(about = "Modify the cli config")]
 pub struct Options {
-    #[argh(subcommand)]
+    #[command(subcommand)]
     subcommand: Subcommand,
 }
 
-#[derive(Debug, argh::FromArgs)]
-#[argh(subcommand)]
+#[derive(Debug, Clone, clap::Subcommand)]
 enum Subcommand {
     Edit(EditOptions),
     Set(SetOptions),
 }
 
-#[derive(Debug, argh::FromArgs)]
-#[argh(
-    subcommand,
-    name = "edit",
-    description = "edit the config with the default text editor"
-)]
+#[derive(Debug, Clone, clap::Parser)]
+#[command(about = "Edit the config with the default text editor")]
 pub struct EditOptions {}
 
-#[derive(Debug, argh::FromArgs)]
-#[argh(subcommand, name = "set", description = "set a key value pair")]
+#[derive(Debug, Clone, clap::Parser)]
+#[command(about = "Set a key value pair")]
 pub struct SetOptions {
-    #[argh(positional, description = "the key to set")]
+    #[arg(help = "The key to set")]
     pub key: String,
 
-    #[argh(positional, description = "the new value")]
+    #[arg(help = "The new value")]
     pub value: String,
 }
 

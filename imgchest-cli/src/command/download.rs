@@ -1,26 +1,21 @@
-use anyhow::ensure;
 use anyhow::Context;
+use anyhow::ensure;
 use std::path::Path;
 use std::path::PathBuf;
 use tokio::task::JoinSet;
 use url::Url;
 
-#[derive(Debug, argh::FromArgs)]
-#[argh(
-    subcommand,
-    name = "download",
-    description = "download a post from imgchest.com"
-)]
+#[derive(Debug, Clone, clap::Parser)]
+#[command(about = "Download a post from imgchest.com")]
 pub struct Options {
-    #[argh(positional, description = "the url of the post")]
+    #[arg(help = "The url of the post")]
     pub url: String,
 
-    #[argh(
-        option,
+    #[arg(
         short = 'o',
         long = "out-dir",
-        default = "PathBuf::from(\".\")",
-        description = "the directory to download to"
+        default_value = ".",
+        help = "The directory to download to"
     )]
     pub out_dir: PathBuf,
 }
