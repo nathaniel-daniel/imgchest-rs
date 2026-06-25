@@ -31,8 +31,6 @@ use reqwest_cookie_store::CookieStoreMutex;
 use scraper::Html;
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::sync::OwnedSemaphorePermit;
-use tokio::sync::Semaphore;
 
 const REQUESTS_PER_MINUTE: u8 = 60;
 const ONE_MINUTE: SignedDuration = SignedDuration::from_secs(60);
@@ -47,7 +45,7 @@ fn minute_trunc_round_config() -> TimestampRound {
 #[derive(Debug)]
 struct RatelimitState {
     last_refreshed: Timestamp,
-    semaphore: Arc<Semaphore>,
+    remaining: u8,
 }
 
 impl RatelimitState {
@@ -58,16 +56,16 @@ impl RatelimitState {
 
         Self {
             last_refreshed,
-            semaphore: Arc::new(Semaphore::new(REQUESTS_PER_MINUTE.into())),
+            remaining: REQUESTS_PER_MINUTE,
         }
     }
 
     /// Get the time needed to sleep to respect the ratelimit.
     ///
     /// # Returns
-    /// Returns a permit if a request can be made.
+    /// Returns Ok if a request can be made.
     /// Otherwise, returns the time needed to sleep before calling this again.
-    fn get_sleep_duration(&mut self) -> Result<OwnedSemaphorePermit, Duration> {
+    fn get_sleep_duration(&mut self) -> Result<(), Duration> {
         let now = Timestamp::now()
             .round(minute_trunc_round_config())
             .expect("invalid round config");
@@ -75,14 +73,13 @@ impl RatelimitState {
         // Refresh the number of requests each minute.
         if self.last_refreshed.duration_until(now) >= ONE_MINUTE {
             self.last_refreshed = now;
-            let remaining = self.semaphore.available_permits();
-            self.semaphore
-                .add_permits(usize::from(REQUESTS_PER_MINUTE) - remaining);
+            self.remaining = REQUESTS_PER_MINUTE;
         }
 
         // If we are allowed to make a request now, make it.
-        if let Ok(permit) = self.semaphore.clone().try_acquire_owned() {
-            return Ok(permit);
+        if self.remaining > 0 {
+            self.remaining -= 1;
+            return Ok(());
         }
 
         // Otherwise, sleep until the next refresh and try again.
@@ -118,7 +115,7 @@ impl ClientState {
         }
     }
 
-    async fn ratelimit(&self) -> OwnedSemaphorePermit {
+    async fn ratelimit(&self) {
         loop {
             let sleep_duration_result = self
                 .ratelimit_state
@@ -126,9 +123,7 @@ impl ClientState {
                 .expect("ratelimit state mutex poisoned")
                 .get_sleep_duration();
             match sleep_duration_result {
-                Ok(permit) => {
-                    return permit;
-                }
+                Ok(()) => return,
                 Err(sleep_duration) => {
                     tokio::time::sleep(sleep_duration).await;
                 }
