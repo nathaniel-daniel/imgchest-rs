@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["Error","InvalidScrapedPostError","InvalidScrapedUserError","PostPrivacy","SortOrder"],"struct":["Body","Client","CookieStore","CookieStoreMutex","CreatePostBuilder","FileUpdate","ListPostsBuilder","ListPostsPost","Post","PostFile","RawCookie","ScrapedPost","ScrapedPostFile","ScrapedUser","UpdatePostBuilder","UploadPostFile","Url","User"]};
